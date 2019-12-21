@@ -1,28 +1,10 @@
 import requests
 import json
 import os
-import time
-
-class apiCallList():
-    def __init__(self):
-        self.list = []  #filled with apiCalls, up to 200
-        self.API_RATE_LIMIT = 120   #API rate limit for our key type (standard access)
-        self.API_CALL_LIMIT = 200   #API call limit for our key type (standard access)
-    def makeCall(self):
-        if(len(self.list) == self.API_CALL_LIMIT-5):   #if we're at the API_CALL_LIMIT, then we need to evict the first call. A little less to be safe
-            now = time.time()
-            timeDelta = now-self.list[0]
-            if(timeDelta <= self.API_RATE_LIMIT+5):   #we can only evict the first call if it's been long enough, otherwise we need to wait. we add 5 seconds to be safe, though it does make it slower overall
-                print("about to wait on an api call for  " + (str)(timeDelta) + " seconds.")
-                time.sleep(timeDelta)
-                print("waited on an api call for " + (str)(timeDelta) + " seconds.")
-            self.list.pop(0)    #evict the first call since it's been long enough
-        self.list.append(time.time())
-        print(len(self.list))
-        
+import time        
         
 API_KEY = ""
-API_CALL_LIST = apiCallList()
+API_RATE_LIMIT = 120
 
 def saveFile(fileName, data, version):
     overwrite = False
@@ -74,10 +56,26 @@ def getApiKey():
             print("apikey.txt does not exist")
     return "?api_key=" + API_KEY
 
-def getVersion():
-    API_CALL_LIST.makeCall()
-    request = requests.get("https://ddragon.leagueoflegends.com/realms/na.json" + getApiKey())
+def makeApiCall(url):
+    """
+    Given a url/endpoint, it will make the call, but handle any error messages
+    """
+    request = requests.get(url)
     d = json.loads(request.text)
+    
+    if(not d.get("status") == None):    #if we have a status on our hands
+        RATE_LIMIT_EXCEEDED = 429
+        if(d["status"]["status_code"] == RATE_LIMIT_EXCEEDED):
+            global API_RATE_LIMIT
+            print("Rate limit exceeded, waiting for " + (str)(API_RATE_LIMIT) + " seconds.")
+            time.sleep(API_RATE_LIMIT)
+            request = requests.get(url)
+            d = json.loads(request.text)
+    
+    return d
+
+def getVersion():
+    d = makeApiCall("https://ddragon.leagueoflegends.com/realms/na.json")
     return d["n"]
 
 def updateChamps(version):
@@ -85,9 +83,7 @@ def updateChamps(version):
     if(f[1] == version):
         print("champs.txt version up to date")
     else:
-        API_CALL_LIST.makeCall()
-        request = requests.get("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/champion.json" + getApiKey())
-        d = json.loads(request.text)
+        d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/champion.json" + getApiKey())
         saveFile("champs.txt",d,version)
         print("champs.txt updated")
         
@@ -96,9 +92,7 @@ def updateItems(version):
     if(f[1] == version):
         print("items.txt version up to date")
     else:
-        API_CALL_LIST.makeCall()
-        request = requests.get("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/item.json" + getApiKey())
-        d = json.loads(request.text)
+        d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/item.json" + getApiKey())
         saveFile("items.txt",d,version)
         print("items.txt updated")
         
@@ -107,9 +101,7 @@ def updateSpells(version):
     if(f[1] == version):
         print("spells.txt version up to date")
     else:
-        API_CALL_LIST.makeCall()
-        request = requests.get("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/summoner.json" + getApiKey())
-        d = json.loads(request.text)
+        d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/summoner.json" + getApiKey())
         saveFile("spells.txt",d,version)
         print("spells.txt updated")
 
@@ -119,63 +111,70 @@ def updateConstants():
     updateItems(versions["item"])
     updateSpells(versions["summoner"])
     
+"""
+Summoner entpoints. Get an account's information by different methods.
+"""
+    
 def getAccountByName(name):
-    API_CALL_LIST.makeCall()
-    request = requests.get("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/" + name + getApiKey())
-    d = json.loads(request.text)
+    d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/" + name + getApiKey())
     return d
 
 def getAccountByAccId(accId):
-    API_CALL_LIST.makeCall()
-    request = requests.get("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-account/" + accId + getApiKey())
-    d = json.loads(request.text)
+    d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-account/" + accId + getApiKey())
     return d
 
 def getAccountByPPUID(ppuid):
-    API_CALL_LIST.makeCall()
-    request = requests.get("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-ppuid/" + ppuid + getApiKey())
-    d = json.loads(request.text)
+    d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-ppuid/" + ppuid + getApiKey())
     return d
 
 def getAccountBySummId(summId):
-    API_CALL_LIST.makeCall()
-    request = requests.get("https://na1.api.riotgames.com/lol/summoner/v4/summoners/" + summId + getApiKey())
-    d = json.loads(request.text)
+    d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/" + summId + getApiKey())
     return d
 
+"""
+Match endpoints. Do different things with matches.
+"""
+
 def getMatchList(accId,queries):
-    API_CALL_LIST.makeCall()
-    request = requests.get("https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/" + accId + getApiKey() + queries)
-    d = json.loads(request.text)
+    d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/" + accId + getApiKey() + queries)
     return d
 
 def getMatchListByName(name,queries):
     summoner = getAccountByName(name)
     return getMatchList(summoner["accountId"],queries)
 
-def getMatch(matchId):
-    API_CALL_LIST.makeCall()
-    request = requests.get("https://na1.api.riotgames.com/lol/match/v4/matches/" + (str)(matchId) + getApiKey())
-    d = json.loads(request.text)
+def getMatchTimeline():
+    d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/timelines/by-match/" + matchId + getApiKey())
     return d
 
+def getMatch(matchId):
+    d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/matches/" + (str)(matchId) + getApiKey())
+    return d
+
+"""
+Important methods built on top of riotapicalls that primarily use them.
+"""
+
 def getAllMatches(matchList):
+    """
+    Get all of the matches from a matchList.
+    """
     matches = []
     count = 0
     for match in matchList["matches"]:
         m = getMatch(match["gameId"])
         matches.append(m)
-        print("Got match #" + (str)(count))
         count += 1
     return matches
 
-def getLast100GamesByName(name,queries):
+def getAllRankedMatchesByName(name):
+    matches = []
+    queries = "&queue=420"
     matchList = getMatchListByName(name,queries)
-    return getAllMatches(matchList)
-
-updateConstants()
-ahir = getLast100GamesByName("CrusherCake","")
-saveFile("ahir.txt",ahir,-1)
-print("doing denis")
-denis = getLast100GamesByName("Avoxin","")
-saveFile("denis.txt",denis,-1)
+    totalGames = matchList["totalGames"]
+    print(totalGames)
+    for num in range(0,(int)(totalGames/100)): #need the +1 because of integer division (truncation)
+        matches.extend(getAllMatches(matchList))
+        queries = "&queue=420&beginIndex=" + (str)((num+1)*100)
+        matchList = getMatchListByName(name,queries)
+    return matches
