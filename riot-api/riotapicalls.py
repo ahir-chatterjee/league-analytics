@@ -196,16 +196,17 @@ def getAllRankedMatchesByAccount(account):
     matchList = getMatchList(accId,queries)
     totalGames = matchList["totalGames"]    #need to find the real amount of total games (accounting for season changes)
     
-    print(totalGames)
+    print((str)(totalGames) + " total ranked games possible to download.")
     for num in range(0,(int)(totalGames/100)): #need the +1 because of integer division (truncation)
         matches.extend(getAllMatches(matchList))
-        if(not len(matches) == 100 + prevSize): #if we didn't add 100 matches, it's because we reached the end of the season
-            print(len(matches))
-            return matches
+        if(not len(matches) == 100 + prevSize): #if we didn't add 100 matches, it's because we reached the end of the season or the last set of games
+            print(len(matches) + " ranked matches actually downloaded.")
+            break
         else:
             prevSize = len(matches)
         queries = "&queue=420&beginIndex=" + (str)((num+1)*100)
         matchList = getMatchList(accId,queries)
+    saveFile(account["name"],matches,getMostRecentSeasonId())
     return matches
 
 def getAccountsByNames(names):

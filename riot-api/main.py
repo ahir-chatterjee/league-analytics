@@ -5,6 +5,7 @@ Created on Mon Dec 23 21:22:15 2019
 @author: ahirc
 """
 
+import riotapicalls
 import opggcalls
 
 def main():
@@ -19,8 +20,9 @@ def main():
 def handleCmd(cmds):
     cmd = cmds[0]   #main command
     cmdList = [["help"],
-               ["opggScout", "name", "opgg"],
-               ["namesFromOpgg", "opgg"]]   #a list of all the commands supported
+               ["opggScout", "teamName", "opgg"],
+               ["namesFromOpgg", "opgg"],
+               ["downloadRankedGames", "[name1,name2,...,nameN]"]]   #a list of all the commands supported
     if(cmd == "help"):
         #print out all of the commands from cmdList and their arguments (if any)
         print("Here is a list of commands and their parameters that they take:")
@@ -46,6 +48,15 @@ def handleCmd(cmds):
             invalidParameterLength(2,len(cmds))
         else:
             print(opggcalls.getNamesFromOpgg(cmds[1]))
+    elif(cmd == "downloadRankedGames"):
+        #downloads the ranked games from the supplied names
+        if(len(cmds) == 1):
+            invalidParameterLength("any number of",len(cmds))
+        else:
+            for i in range(1,len(cmds)):
+                name = cmds[i]
+                account = riotapicalls.getAccountByName(name)
+                riotapicalls.getAllRankedMatchesByAccount(account)  #saves them into a file called name.txt, with a "version" of the season
     else:
         print("Command not recognized. Try \"help\" for a list of recognized commands")
         
