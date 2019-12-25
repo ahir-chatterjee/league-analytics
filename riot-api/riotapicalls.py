@@ -53,7 +53,7 @@ def getApiKey():
             openFile = open(fileName,'r')
             API_KEY = openFile.read()
         else:
-            print("apikey.txt does not exist")
+            print("apikey.txt does not exist. Make one using your own apikey from https://developer.riotgames.com/")
     return "?api_key=" + API_KEY
 
 def makeApiCall(url):
@@ -63,17 +63,31 @@ def makeApiCall(url):
     request = requests.get(url)
     d = json.loads(request.text)
     
-    if(not d.get("status") == None):    #if we have a status on our hands
-        RATE_LIMIT_EXCEEDED = 429
-        if(d["status"]["status_code"] == RATE_LIMIT_EXCEEDED):
-            global API_RATE_LIMIT
-            print("Rate limit exceeded, waiting for " + (str)(API_RATE_LIMIT) + " seconds.")
-            time.sleep(API_RATE_LIMIT)
-            request = requests.get(url)
-            d = json.loads(request.text)
+    if(type(d) is dict):
+        if(not d.get("status") == None):    #if we have a status on our hands
+            RATE_LIMIT_EXCEEDED = 429
+            FORBIDDEN = 403
+            NOTFOUND = 404
+            statusCode = d["status"]["status_code"]
+            if(statusCode == RATE_LIMIT_EXCEEDED):
+                global API_RATE_LIMIT
+                print("Rate limit exceeded, waiting for " + (str)(API_RATE_LIMIT) + " seconds.")
+                time.sleep(API_RATE_LIMIT)
+                request = requests.get(url)
+                d = json.loads(request.text)
+            elif(statusCode == FORBIDDEN):
+                print("API_KEY is incorrect. Please update your apikey.txt from https://developer.riotgames.com")
+            elif(statusCode == NOTFOUND):
+                print("No data was found using the following url: " + url)
+            else:
+                print("Unknown status code: " + (str)(statusCode))
     
     return d
 
+def getSeasons():
+    d = makeApiCall("http://static.developer.riotgames.com/docs/lol/seasons.json")
+    return d
+    
 def getVersion():
     d = makeApiCall("https://ddragon.leagueoflegends.com/realms/na.json")
     return d["n"]
@@ -139,10 +153,6 @@ def getMatchList(accId,queries):
     d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/" + accId + getApiKey() + queries)
     return d
 
-def getMatchListByName(name,queries):
-    summoner = getAccountByName(name)
-    return getMatchList(summoner["accountId"],queries)
-
 def getMatchTimeline():
     d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/timelines/by-match/" + matchId + getApiKey())
     return d
@@ -152,13 +162,19 @@ def getMatch(matchId):
     return d
 
 """
-Important methods built on top of riotapicalls that primarily use them.
+Important methods built on top of riotapicalls that use the above endpoints to do useful things.
 """
+
+def getMostRecentSeasonId():
+    seasons = getSeasons()
+    season = seasons[len(seasons)-1]
+    return season["id"]
 
 def getAllMatches(matchList):
     """
-    Get all of the matches from a matchList.
+    Get all of the matches from a matchList. Defaults to the most recent season.
     """
+    seasonId = getMostRecentSeasonId()
     matches = []
     count = 0
     for match in matchList["matches"]:
@@ -167,14 +183,33 @@ def getAllMatches(matchList):
         count += 1
     return matches
 
-def getAllRankedMatchesByName(name):
+def getMatchListByName(name,queries):
+    summoner = getAccountByName(name)
+    return getMatchList(summoner["accountId"],queries)
+
+def getAllRankedMatchesByAccount(account):
     matches = []
+    accId = account["accountId"]
+    
+    prevSize = 0
     queries = "&queue=420"
-    matchList = getMatchListByName(name,queries)
-    totalGames = matchList["totalGames"]
+    matchList = getMatchList(accId,queries)
+    totalGames = matchList["totalGames"]    #need to find the real amount of total games (accounting for season changes)
+    
     print(totalGames)
     for num in range(0,(int)(totalGames/100)): #need the +1 because of integer division (truncation)
         matches.extend(getAllMatches(matchList))
+        if(not len(matches) == 100 + prevSize): #if we didn't add 100 matches, it's because we reached the end of the season
+            print(len(matches))
+            return matches
+        else:
+            prevSize = len(matches)
         queries = "&queue=420&beginIndex=" + (str)((num+1)*100)
-        matchList = getMatchListByName(name,queries)
+        matchList = getMatchList(accId,queries)
     return matches
+
+def getAccountsByNames(names):
+    accounts = []
+    for name in names:
+        accounts.append(getAccountByName(name))
+    return accounts

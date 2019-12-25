@@ -8,38 +8,56 @@ Created on Sat Dec 21 14:04:10 2019
 import riotapicalls
 
 def getNamesFromOpgg(opgg):
-    opgg = "https://na.op.gg/multi/query=arfarfawoo%C3%B2w%C3%B3o%2Cpoopsers%2Cloopsers%2Cra%C3%AFlgun%2Clickitloveit"
-    split = opgg.split("query=")
-    names = split[1].split("%2C")
-    print(names)
-    finalNames = []
+    split = opgg.split("query=")    #we only care about the part after query=, which is in split[1]
+    if(len(split) < 2):    #passed an invalid op.gg link
+        return []
+    names = split[1].split("%2C")   #each name is separated by %2C
+    finalNames = [] #store our final names here
+    
     for name in names:
+        #handle all the special characters in the name.
+        #assertion: a special character is always in the format "%__%__", where "__" is in hex (ex. %C3%B2)
+        
+        #construct variables
         n = name
         index = n.find('%')
         finalName = ""
-        lastIndex = -1
+        lastIndex = -1  #we need to know how the final name string needs to be concatenated, so keep track of the last special character
+        
         while(not(index == -1)):
-            char = n[index:index+6]
-            char = translateChar(char)
-            finalName += n[:index]
-            finalName += char
-            n = n[index+6:]
+            char = n[index:index+6] #isolate the special character string
+            char = translateChar(char)  #translate the string into a single char
+            finalName += n[:index]  #add the previous characters before the special char to the finalName
+            finalName += char #add the special char to the finalName
+            #reconstruct variables
+            n = n[index+6:] 
             lastIndex = index
             index = n.find('%')
+            
+        #handle the final cases
         if(lastIndex == -1):
+            #there were no special characters, the name is just the name
             finalName = name
         else:
+            #there was at least one special character, do some voodoo magic to create the proper name
             finalName += n[lastIndex-2:]
-        finalNames.append(finalName)
-    print(finalNames)
+            
+        finalNames.append(finalName)    #append the finalName to the array of them
+    return finalNames
     
 def translateChar(char):
-    string = "\\x" + char[1:3] + "\\x" + char[4:]
-    b = (bytes)(string)
-    print(b.decode('utf8'))
-    return '!'
+    hexInts = [int(char[1:3],16), int(char[4:],16)] #isolate the first set and decode them, then isolate the second set and decode them
+    specChar = bytes(hexInts) #turn the hexInts into bytes so we can decode them and return them in utf8 format
+    return specChar.decode('utf8')
 
-#print(b'\xC3\xB2'.decode('utf8'))
-#print("ò".encode('utf8'))    
-#print("ò".encode('utf8').decode('utf8'))
-getNamesFromOpgg("")
+def createScoutingReport(name,opgg):
+    names = getNamesFromOpgg(opgg)
+    accounts = riotapicalls.getAccountsByNames(names)
+    for account in accounts:
+        summName = account["name"]
+        print(summName)
+        d = riotapicalls.getAllRankedMatchesByAccount(account)
+        riotapicalls.saveFile(summName,d,-1)
+    #print(accounts)
+    
+createScoutingReport("UT","https://na.op.gg/multi/query=poopsers%2Cvelocityone%2Cigthethigh%2Carfarfawoo%C3%B2w%C3%B3o%2Cloopsers%2Cyellowbumblebee%2Cnoodlz%2Csumochess%2Cas%C3%B8nder%2Ccrushercake%2Cra%C3%AFlgun")
