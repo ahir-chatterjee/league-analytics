@@ -68,6 +68,7 @@ def makeApiCall(url):
             RATE_LIMIT_EXCEEDED = 429
             FORBIDDEN = 403
             NOTFOUND = 404
+            UNAVAILABLE = 503
             statusCode = d["status"]["status_code"]
             if(statusCode == RATE_LIMIT_EXCEEDED):
                 global API_RATE_LIMIT
@@ -79,6 +80,10 @@ def makeApiCall(url):
                 print("API_KEY is incorrect. Please update your apikey.txt from https://developer.riotgames.com")
             elif(statusCode == NOTFOUND):
                 print("No data was found using the following url: " + url)
+            elif(statusCode == UNAVAILABLE):
+                print("Service unavailable, trying again in 5 seconds.")
+                time.sleep(5)
+                return makeApiCall(url)
             else:
                 print("Unknown status code: " + (str)(statusCode))
     
@@ -153,8 +158,8 @@ def getMatchList(accId,queries):
     d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/matchlists/by-account/" + accId + getApiKey() + queries)
     return d
 
-def getMatchTimeline():
-    d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/timelines/by-match/" + matchId + getApiKey())
+def getMatchTimeline(matchId):
+    d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/timelines/by-match/" + (str)(matchId) + getApiKey())
     return d
 
 def getMatch(matchId):
@@ -174,13 +179,16 @@ def getAllMatches(matchList):
     """
     Get all of the matches from a matchList. Defaults to the most recent season.
     """
+    if(len(matchList) == 0):
+        return []
     seasonId = getMostRecentSeasonId()
     matches = []
     count = 0
     for match in matchList["matches"]:
-        m = getMatch(match["gameId"])
-        matches.append(m)
-        count += 1
+        if((int)(match["season"]) == (int)(seasonId)):
+            m = getMatch(match["gameId"])
+            matches.append(m)
+            count += 1
     return matches
 
 def getMatchListByName(name,queries):
@@ -190,6 +198,15 @@ def getMatchListByName(name,queries):
 def getAllRankedMatchesByAccount(account):
     matches = []
     accId = account["accountId"]
+    name = account["name"]
+    seasonId = getMostRecentSeasonId()
+    fileName = name+"S"+(str)(seasonId)+".txt"
+    
+    f = loadFile(fileName)
+    lastGameId = 0
+    if(f[1] == seasonId):
+        lastGameId = f[0][0]["gameId"]
+        print((str)(len(f[0])) + " ranked matches already downloaded.")
     
     prevSize = 0
     queries = "&queue=420"
@@ -198,16 +215,32 @@ def getAllRankedMatchesByAccount(account):
     
     print((str)(totalGames) + " total ranked games possible to download.")
     for num in range(0,(int)(totalGames/100)): #need the +1 because of integer division (truncation)
+        matchList = checkGameIds(matchList,lastGameId)
         matches.extend(getAllMatches(matchList))
-        if(not len(matches) == 100 + prevSize): #if we didn't add 100 matches, it's because we reached the end of the season or the last set of games
-            print(len(matches) + " ranked matches actually downloaded.")
+        if(not len(matches) == 100 + prevSize): #if we didn't add 100 matches, it's because we reached the end of the season, a duplicate match, or the last set of games
             break
         else:
             prevSize = len(matches)
+            
         queries = "&queue=420&beginIndex=" + (str)((num+1)*100)
         matchList = getMatchList(accId,queries)
-    saveFile(account["name"],matches,getMostRecentSeasonId())
+        
+    print((str)(len(matches)) + " ranked matches actually downloaded.")
+        
+    if(f[1] == seasonId):
+        matches.extend(f[0])    #add back the matches we loaded in at the beginning
+        
+    saveFile(fileName,matches,seasonId)
     return matches
+
+def checkGameIds(matchList,lastGameId):
+    newMatchList = {"matches":[]}
+    for match in matchList["matches"]:
+        if(match["gameId"] == lastGameId):  #found the last match that is the same, we don't need to keep going, so we're done
+            break
+        else:
+            newMatchList["matches"].append(match)
+    return newMatchList
 
 def getAccountsByNames(names):
     accounts = []

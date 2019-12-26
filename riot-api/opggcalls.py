@@ -6,6 +6,7 @@ Created on Sat Dec 21 14:04:10 2019
 """
 
 import riotapicalls
+import time
 
 def getNamesFromOpgg(opgg):
     split = opgg.split("query=")    #we only care about the part after query=, which is in split[1]
@@ -50,14 +51,16 @@ def translateChar(char):
     specChar = bytes(hexInts) #turn the hexInts into bytes so we can decode them and return them in utf8 format
     return specChar.decode('utf8')
 
-def createScoutingReport(name,opgg):
+def createScoutingReport(teamName,opgg):
     names = getNamesFromOpgg(opgg)
     accounts = riotapicalls.getAccountsByNames(names)
+    now = time.localtime()
+    timeString = (str)(now.tm_mon) + "-" + (str)(now.tm_mday) + "-" + (str)(now.tm_year)
+    riotapicalls.saveFile(teamName+" "+timeString+".txt",accounts,time.asctime(time.localtime(time.time())))
     for account in accounts:
         summName = account["name"]
         print(summName)
-        d = riotapicalls.getAllRankedMatchesByAccount(account)
-        riotapicalls.saveFile(summName,d,-1)
-    #print(accounts)
+        riotapicalls.getAllRankedMatchesByAccount(account)
     
-#createScoutingReport("UT","https://na.op.gg/multi/query=poopsers%2Cvelocityone%2Cigthethigh%2Carfarfawoo%C3%B2w%C3%B3o%2Cloopsers%2Cyellowbumblebee%2Cnoodlz%2Csumochess%2Cas%C3%B8nder%2Ccrushercake%2Cra%C3%AFlgun")
+createScoutingReport("UT Austin","https://na.op.gg/multi/query=poopsers%2Cvelocityone%2Cigthethigh%2Carfarfawoo%C3%B2w%C3%B3o%2Cloopsers%2Cyellowbumblebee%2Cnoodlz%2Csumochess%2Cas%C3%B8nder%2Ccrushercake%2Cra%C3%AFlgun")
+#check Tanner (VelocityOne). Games downloaded are far too low
