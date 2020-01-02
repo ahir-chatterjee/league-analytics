@@ -1,20 +1,24 @@
 import requests
 import json
 import os
-import time        
+import time       
+import sqlite3
         
 API_KEY = ""
-API_RATE_LIMIT = 120
+API_RATE_LIMIT = 120    #a standard API_KEY refreshes every 2 minutes, or 120 seconds
+P_DB = sqlite3.connect("summoners/accounts.db") #connect to our account database
 
-def saveFile(fileName, data, version):
+def saveFile(fileName, data):
     overwrite = False
     if(os.path.exists(fileName)):
         overwrite = True
+    elif(fileName.rfind('/') > 0):
+        path = fileName[0:fileName.rfind('/')]
+        if(not os.path.exists(path)):
+            os.makedirs(path)
     with open(fileName,'w') as outfile:
         wrapperList = []
         wrapperList.append(data)
-        wrapperList.append(version)
-        #format of wrapperList is [data,version]
         json.dump(wrapperList,outfile)
     if(overwrite):
         print(fileName + " saved and overwritten successfully.")
@@ -23,11 +27,11 @@ def saveFile(fileName, data, version):
 
 def loadFile(fileName):
     """
-    When saved, our output is a list of [data,version], so we 
-    need to return a list with special values to be certain it 
+    When saved, our output is a list of [data], so we 
+    need to return an empty list to be certain it 
     worked and doesn't break.
     """
-    wrapperList = [-1,-1] 
+    wrapperList = [] 
     if(os.path.exists(fileName)):
         tempStr = ""
         openFile = open(fileName,'r')
@@ -58,9 +62,14 @@ def getApiKey():
 
 def makeApiCall(url):
     """
-    Given a url/endpoint, it will make the call, but handle any error messages
+    Given a url/endpoint, it will make the call, and handle any error messages
     """
-    request = requests.get(url)
+    try:    #sometimes we get a handshake error. if this happens, try it again
+        request = requests.get(url)
+    except:
+        print("Exception of request of url, trying again in 5 seconds. Failed url: " + (url))
+        time.sleep(5)
+        return makeApiCall(url)
     d = json.loads(request.text)
     
     if(type(d) is dict):
@@ -98,30 +107,30 @@ def getVersion():
     return d["n"]
 
 def updateChamps(version):
-    f = loadFile("champs.txt")
-    if(f[1] == version):
+    f = loadFile("constants/champs.txt")
+    if(len(f) > 0 and f[0]["version"] == version):
         print("champs.txt version up to date")
     else:
         d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/champion.json" + getApiKey())
-        saveFile("champs.txt",d,version)
+        saveFile("constants/champs.txt",{"data":d,"version":version})
         print("champs.txt updated")
         
 def updateItems(version):
-    f = loadFile("items.txt")
-    if(f[1] == version):
+    f = loadFile("constants/items.txt")
+    if(len(f) > 0 and f[0]["version"] == version):
         print("items.txt version up to date")
     else:
         d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/item.json" + getApiKey())
-        saveFile("items.txt",d,version)
+        saveFile("constants/items.txt",{"data":d,"version":version})
         print("items.txt updated")
         
 def updateSpells(version):
-    f = loadFile("spells.txt")
-    if(f[1] == version):
-        print("spells.txt version up to date")
+    f = loadFile("constants/spells.txt")
+    if(len(f) > 0 and f[0]["version"] == version):
+            print("spells.txt version up to date")
     else:
         d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/summoner.json" + getApiKey())
-        saveFile("spells.txt",d,version)
+        saveFile("constants/spells.txt",{"data":d,"version":version})
         print("spells.txt updated")
 
 def updateConstants():
@@ -200,13 +209,13 @@ def getAllRankedMatchesByAccount(account):
     accId = account["accountId"]
     name = account["name"]
     seasonId = getMostRecentSeasonId()
-    fileName = name+"S"+(str)(seasonId)+".txt"
+    fileName = "summoners/"+name+"S"+(str)(seasonId)+".txt"
     
     f = loadFile(fileName)
     lastGameId = 0
-    if(f[1] == seasonId):
-        lastGameId = f[0][0]["gameId"]
-        print((str)(len(f[0])) + " ranked matches already downloaded.")
+    if(len(f) > 0 and f[0]["seasonId"] == seasonId):
+        lastGameId = f[0]["matches"][0]["gameId"]
+        print((str)(len(f[0]["matches"])) + " ranked matches already downloaded.")
     
     prevSize = 0
     queries = "&queue=420"
@@ -225,12 +234,16 @@ def getAllRankedMatchesByAccount(account):
         queries = "&queue=420&beginIndex=" + (str)((num+1)*100)
         matchList = getMatchList(accId,queries)
         
-    print((str)(len(matches)) + " ranked matches actually downloaded.")
+    matchesDownloaded = len(matches)
+    if(len(matches) == 0):
+        print("No ranked matches downloaded.")
+        return f[0]["matches"]
+    else:
+        print((str)(matchesDownloaded) + " ranked matches actually downloaded.")
+        if(len(f) > 0 and f[0]["seasonId"] == seasonId):
+            matches.extend(f[0]["matches"])    #add back the matches we loaded in at the beginning
         
-    if(f[1] == seasonId):
-        matches.extend(f[0])    #add back the matches we loaded in at the beginning
-        
-    saveFile(fileName,matches,seasonId)
+    saveFile(fileName,{"matches":matches,"seasonId":seasonId})
     return matches
 
 def checkGameIds(matchList,lastGameId):

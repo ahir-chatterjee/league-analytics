@@ -62,5 +62,5 @@ def createScoutingReport(teamName,opgg):
         print(summName)
         riotapicalls.getAllRankedMatchesByAccount(account)
     
-createScoutingReport("UT Austin","https://na.op.gg/multi/query=poopsers%2Cvelocityone%2Cigthethigh%2Carfarfawoo%C3%B2w%C3%B3o%2Cloopsers%2Cyellowbumblebee%2Cnoodlz%2Csumochess%2Cas%C3%B8nder%2Ccrushercake%2Cra%C3%AFlgun")
+#createScoutingReport("UT Austin","https://na.op.gg/multi/query=poopsers%2Cvelocityone%2Cigthethigh%2Carfarfawoo%C3%B2w%C3%B3o%2Cloopsers%2Cyellowbumblebee%2Cnoodlz%2Csumochess%2Cas%C3%B8nder%2Ccrushercake%2Cra%C3%AFlgun")
 #check Tanner (VelocityOne). Games downloaded are far too low
