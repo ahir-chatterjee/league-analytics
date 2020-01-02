@@ -56,7 +56,7 @@ def createScoutingReport(teamName,opgg):
     accounts = riotapicalls.getAccountsByNames(names)
     now = time.localtime()
     timeString = (str)(now.tm_mon) + "-" + (str)(now.tm_mday) + "-" + (str)(now.tm_year)
-    riotapicalls.saveFile(teamName+" "+timeString+".txt",accounts,time.asctime(time.localtime(time.time())))
+    riotapicalls.saveFile(teamName+" "+timeString+".txt",accounts)
     for account in accounts:
         summName = account["name"]
         print(summName)

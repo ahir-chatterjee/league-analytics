@@ -6,7 +6,11 @@ import sqlite3
         
 API_KEY = ""
 API_RATE_LIMIT = 120    #a standard API_KEY refreshes every 2 minutes, or 120 seconds
-P_DB = sqlite3.connect("summoners/accounts.db") #connect to our account database
+DB = sqlite3.connect("riotapi.db") #connect to our account database
+
+"""
+Overall useful functions that don't necessarily relate to the Riot API.
+"""
 
 def saveFile(fileName, data):
     overwrite = False
@@ -45,6 +49,27 @@ def loadFile(fileName):
     else:
         print("Could not find a file named " + fileName + ".")
     return wrapperList
+
+def initializeDB():
+    global DB
+    cursor = DB.cursor()
+    """
+    hard coded numbers are the max sizes for the respective field, 
+    with extra padding just in case
+    """
+    create_accounts = """
+    CREATE TABLE accounts (
+    profileIconId int,
+    name VARCHAR(16),
+    puuid VARCHAR(100),
+    summonerLevel int,
+    accountId VARCHAR(100),
+    id VARCHAR(100),
+    revisionDate bigint);
+    """
+    cursor.execute(create_accounts)
+    DB.commit()
+    DB.close()
 
 def getApiKey():
     """
@@ -97,6 +122,10 @@ def makeApiCall(url):
                 print("Unknown status code: " + (str)(statusCode))
     
     return d
+
+"""
+The actual Riot API calls (or datadragon calls)
+"""
 
 def getSeasons():
     d = makeApiCall("http://static.developer.riotgames.com/docs/lol/seasons.json")
