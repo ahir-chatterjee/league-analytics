@@ -40,7 +40,7 @@ def loadFile(fileName):
         openFile = open(fileName,'r')
         for line in openFile:
             tempStr += line
-        if(len(tempStr) > 0):
+        if(tempStr):    #if tempStr is not empty
             wrapperList = json.loads(tempStr)  
         else:
             print(fileName + " is an empty file.")
@@ -54,7 +54,7 @@ def getApiKey():
     Either loads in the API_KEY or just returns the value if already loaded.
     """
     global API_KEY
-    if(len(API_KEY) == 0):
+    if(not API_KEY):    #if the API_KEY is not loaded
         fileName = "apikey.txt"
         if(os.path.exists("apikey.txt")):
             openFile = open(fileName,'r')
@@ -115,7 +115,7 @@ def getVersion():
 
 def updateChamps(version):
     f = loadFile("constants/champs.txt")
-    if(len(f) > 0 and f[0]["version"] == version):
+    if(f and f[0]["version"] == version):   #if f is loaded and up to date
         print("champs.txt version up to date")
     else:
         d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/champion.json" + getApiKey())
@@ -124,7 +124,7 @@ def updateChamps(version):
         
 def updateItems(version):
     f = loadFile("constants/items.txt")
-    if(len(f) > 0 and f[0]["version"] == version):
+    if(f and f[0]["version"] == version):   #if f is loaded and up to date
         print("items.txt version up to date")
     else:
         d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/item.json" + getApiKey())
@@ -133,7 +133,7 @@ def updateItems(version):
         
 def updateSpells(version):
     f = loadFile("constants/spells.txt")
-    if(len(f) > 0 and f[0]["version"] == version):
+    if(f and f[0]["version"] == version):  #if f is loaded and up to date
             print("spells.txt version up to date")
     else:
         d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/summoner.json" + getApiKey())
@@ -152,33 +152,33 @@ Summoner entpoints. Get an account's information by different methods.
     
 def getAccountByName(name):
     d = dbcalls.fetchAccountByName(name)
-    if(len(d) == 0):
+    if(not d):  #if d is empty, make the apiCall
         d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/" + name + getApiKey())
         acc = dbcalls.fetchAccountByPuuid(d["puuid"])   #check for a potential name change
-        if(not len(acc) == 0):
-            d = acc
-            dbcalls.change
+        if(acc):  #if acc is not empty, that means the user name changed
+            dbcalls.updateAccountName(d["name"],d["puuid"])
+            d = dbcalls.fetchAccountByPuuid(d["puuid"])
         else:
             dbcalls.addAccountToDB(d)   #store all the information for this account so we can store its history
     return d
 
 def getAccountByAccId(accId):
     d = dbcalls.fetchAccountByAccId(accId)
-    if(len(d) == 0):
+    if(not d):  #if d is empty, make the apiCall
         d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-account/" + accId + getApiKey())
         dbcalls.addAccountToDB(d)   #store all the information for this account so we can store it's history
     return d
 
 def getAccountByPuuid(puuid):
     d = dbcalls.fetchAccountByPuuid(puuid)
-    if(len(d) == 0):
+    if(not d):  #if d is empty, make the apiCall
         d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/" + puuid + getApiKey())
         dbcalls.addAccountToDB(d)   #store all the information for this account so we can store it's history
     return d
 
 def getAccountBySummId(summId):
     d = dbcalls.fetchAccountBySummId(summId)
-    if(len(d) == 0):
+    if(not d):  #if d is empty, make the apiCall
         d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/" + summId + getApiKey())
         dbcalls.addAccountToDB(d)   #store all the information for this account so we can store it's history
     return d
@@ -196,7 +196,11 @@ def getMatchTimeline(matchId):
     return d
 
 def getMatch(matchId):
-    d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/matches/" + (str)(matchId) + getApiKey())
+    d = dbcalls.fetchMatch(matchId)
+    if(not d):
+        d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/matches/" + (str)(matchId) + getApiKey())
+        print("making dbcall")
+        dbcalls.addMatchToDB(d)
     return d
 
 """
@@ -212,7 +216,7 @@ def getAllMatches(matchList):
     """
     Get all of the matches from a matchList. Defaults to the most recent season.
     """
-    if(len(matchList) == 0):
+    if(not matchList):
         return []
     seasonId = getMostRecentSeasonId()
     matches = []
@@ -237,7 +241,7 @@ def getAllRankedMatchesByAccount(account):
     
     f = loadFile(fileName)
     lastGameId = 0
-    if(len(f) > 0 and f[0]["seasonId"] == seasonId):
+    if(f and f[0]["seasonId"] == seasonId): #if the file is not empty and the seasonId is correct
         lastGameId = f[0]["matches"][0]["gameId"]
         print((str)(len(f[0]["matches"])) + " ranked matches already downloaded.")
     
@@ -259,12 +263,12 @@ def getAllRankedMatchesByAccount(account):
         matchList = getMatchList(accId,queries)
         
     matchesDownloaded = len(matches)
-    if(len(matches) == 0):
+    if(not matches):    #if matches is empty
         print("No ranked matches downloaded.")
         return f[0]["matches"]
     else:
         print((str)(matchesDownloaded) + " ranked matches actually downloaded.")
-        if(len(f) > 0 and f[0]["seasonId"] == seasonId):
+        if(f and f[0]["seasonId"] == seasonId): #if the file is loaded and the seasonId matches
             matches.extend(f[0]["matches"])    #add back the matches we loaded in at the beginning
         
     saveFile(fileName,{"matches":matches,"seasonId":seasonId})
