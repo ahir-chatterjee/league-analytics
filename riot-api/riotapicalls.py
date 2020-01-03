@@ -2,11 +2,10 @@ import requests
 import json
 import os
 import time       
-import sqlite3
+import dbcalls
         
 API_KEY = ""
 API_RATE_LIMIT = 120    #a standard API_KEY refreshes every 2 minutes, or 120 seconds
-DB = sqlite3.connect("riotapi.db") #connect to our account database
 
 """
 Overall useful functions that don't necessarily relate to the Riot API.
@@ -49,27 +48,6 @@ def loadFile(fileName):
     else:
         print("Could not find a file named " + fileName + ".")
     return wrapperList
-
-def initializeDB():
-    global DB
-    cursor = DB.cursor()
-    """
-    hard coded numbers are the max sizes for the respective field, 
-    with extra padding just in case
-    """
-    create_accounts = """
-    CREATE TABLE accounts (
-    profileIconId int,
-    name VARCHAR(16),
-    puuid VARCHAR(100),
-    summonerLevel int,
-    accountId VARCHAR(100),
-    id VARCHAR(100),
-    revisionDate bigint);
-    """
-    cursor.execute(create_accounts)
-    DB.commit()
-    DB.close()
 
 def getApiKey():
     """
@@ -173,19 +151,36 @@ Summoner entpoints. Get an account's information by different methods.
 """
     
 def getAccountByName(name):
-    d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/" + name + getApiKey())
+    d = dbcalls.fetchAccountByName(name)
+    if(len(d) == 0):
+        d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/" + name + getApiKey())
+        acc = dbcalls.fetchAccountByPuuid(d["puuid"])   #check for a potential name change
+        if(not len(acc) == 0):
+            d = acc
+            dbcalls.change
+        else:
+            dbcalls.addAccountToDB(d)   #store all the information for this account so we can store its history
     return d
 
 def getAccountByAccId(accId):
-    d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-account/" + accId + getApiKey())
+    d = dbcalls.fetchAccountByAccId(accId)
+    if(len(d) == 0):
+        d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-account/" + accId + getApiKey())
+        dbcalls.addAccountToDB(d)   #store all the information for this account so we can store it's history
     return d
 
-def getAccountByPPUID(ppuid):
-    d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-ppuid/" + ppuid + getApiKey())
+def getAccountByPuuid(puuid):
+    d = dbcalls.fetchAccountByPuuid(puuid)
+    if(len(d) == 0):
+        d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/" + puuid + getApiKey())
+        dbcalls.addAccountToDB(d)   #store all the information for this account so we can store it's history
     return d
 
 def getAccountBySummId(summId):
-    d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/" + summId + getApiKey())
+    d = dbcalls.fetchAccountBySummId(summId)
+    if(len(d) == 0):
+        d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/" + summId + getApiKey())
+        dbcalls.addAccountToDB(d)   #store all the information for this account so we can store it's history
     return d
 
 """
@@ -289,3 +284,5 @@ def getAccountsByNames(names):
     for name in names:
         accounts.append(getAccountByName(name))
     return accounts
+
+match = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/matches/3251422232"+getApiKey())
