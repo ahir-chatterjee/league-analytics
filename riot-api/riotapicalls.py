@@ -114,37 +114,32 @@ def getVersion():
     return d["n"]
 
 def updateChamps(version):
-    f = loadFile("constants/champs.txt")
-    if(f and f[0]["version"] == version):   #if f is loaded and up to date
-        print("champs.txt version up to date")
-    else:
-        d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/champion.json" + getApiKey())
-        saveFile("constants/champs.txt",{"data":d,"version":version})
-        print("champs.txt updated")
+    d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/champion.json" + getApiKey())
+    champs = []
+    for champ in d["data"]:
+        print(champ)
+        data = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/champion/" + champ + ".json" + getApiKey())
+        champs.append(data["data"][champ])
+    dbcalls.updateChamps(champs,version)
+    return champs
         
 def updateItems(version):
-    f = loadFile("constants/items.txt")
-    if(f and f[0]["version"] == version):   #if f is loaded and up to date
-        print("items.txt version up to date")
-    else:
-        d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/item.json" + getApiKey())
-        saveFile("constants/items.txt",{"data":d,"version":version})
-        print("items.txt updated")
+    d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/item.json" + getApiKey())
+    dbcalls.updateItems(d)
         
-def updateSpells(version):
-    f = loadFile("constants/spells.txt")
-    if(f and f[0]["version"] == version):  #if f is loaded and up to date
-            print("spells.txt version up to date")
-    else:
-        d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/summoner.json" + getApiKey())
-        saveFile("constants/spells.txt",{"data":d,"version":version})
-        print("spells.txt updated")
+def updateSpells(version):  #summoner spells
+    d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/summoner.json" + getApiKey())
+    dbcalls.updateSpells(d)
 
 def updateConstants():
     versions = getVersion()
-    updateChamps(versions["champion"])
-    updateItems(versions["item"])
-    updateSpells(versions["summoner"])
+    updatesNeeded = dbcalls.checkForUpdates(versions)   #list with three booleans, [champs,items,summoners]
+    if(updatesNeeded[0]):
+        updateChamps(versions["champion"])
+    if(updatesNeeded[1]):
+        updateItems(versions["item"])
+    if(updatesNeeded[2]):
+        updateSpells(versions["summoner"])
     
 """
 Summoner entpoints. Get an account's information by different methods.
@@ -288,5 +283,3 @@ def getAccountsByNames(names):
     for name in names:
         accounts.append(getAccountByName(name))
     return accounts
-
-match = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/matches/3251422232"+getApiKey())
