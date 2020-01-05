@@ -8,15 +8,14 @@ Created on Thu Jan  2 16:14:03 2020
 import sqlite3
 import json
 
+global DB, cursor
 DB = sqlite3.connect("riotapi.db") #connect to our database
 cursor = DB.cursor()
 
 def initializeDB():
     """
     Should never be called, but this was used to initalize the riotapi.db file
-    """
-    global DB, cursor
-    
+    """    
     cursor.execute("DROP TABLE accounts")
     DB.commit()
     #hard coded numbers are the max sizes for the respective field, with extra padding just in case
@@ -57,7 +56,7 @@ def initializeDB():
     cursor.execute(create_matches)
     DB.commit()    
     
-    cursor.execute("DROP TABLE champions")
+    #cursor.execute("DROP TABLE champions")
     DB.commit()
     create_champions = """
     CREATE TABLE champions (
@@ -90,7 +89,7 @@ def initializeDB():
     data TEXT
     );
     """
-    cursor.execute(create_champions)
+    #cursor.execute(create_champions)
     DB.commit() 
     
     cursor.execute("DROP TABLE items")
@@ -105,6 +104,7 @@ def initializeDB():
     purchasable int,
     sellCost int,
     totalCost int,
+    onSR int,
     name VARCHAR(128),
     number int,
     data TEXT
@@ -121,16 +121,14 @@ def initializeDB():
     name VARCHAR(32),
     cd int,
     key int,
+    onSR int,
     data TEXT
     );
     """
     cursor.execute(create_sSpells)
     DB.commit() 
     
-initializeDB()
-    
 def printTable(tableName):
-    global DB, cursor
     cmd = "SELECT * from " + tableName
     cursor.execute(cmd)
     results = cursor.fetchall()
@@ -142,11 +140,11 @@ def printTables():
     """
     Purely a debug method
     """    
-    #printTable("accounts")
-    #printTable("matches")
+    printTable("accounts")
+    printTable("matches")
     printTable("champions")
-    
-#printTables()
+    printTable("items")
+    printTable("sSpells")
         
 """
 Table update method for dynamic data that changes per patch (champions, items, sSpells)
@@ -154,27 +152,38 @@ Table update method for dynamic data that changes per patch (champions, items, s
 
 def checkForUpdates(versions):
     updatesNeeded = [False,False,False]    #[champions,items,sSpells]
-    global DB, cursor
     
     #champions
     cmd = "SELECT version from champions"
     cursor.execute(cmd)
     champVersion = cursor.fetchone()
-    if(not versions["champion"] == champVersion):
+    if(not champVersion == None):
+        champVersion = champVersion[0]
+        if(not versions["champion"] == champVersion):
+            updatesNeeded[0] = True
+    else:
         updatesNeeded[0] = True
     
     #items   
     cmd = "SELECT version from items"
     cursor.execute(cmd)
     itemVersion = cursor.fetchone()
-    if(not versions["item"] == itemVersion):
+    if(not itemVersion == None):
+        itemVersion = itemVersion[0]
+        if(not versions["item"] == itemVersion):
+            updatesNeeded[1] = True
+    else:
         updatesNeeded[1] = True
         
     #sSpells
     cmd = "SELECT version from sSpells"
     cursor.execute(cmd)
     sSpellsVersion = cursor.fetchone()
-    if(not versions["summoner"] == sSpellsVersion):
+    if(not sSpellsVersion == None):
+        sSpellsVersion = sSpellsVersion[0]
+        if(not versions["summoner"] == sSpellsVersion):
+            updatesNeeded[2] = True
+    else:
         updatesNeeded[2] = True
     
     return updatesNeeded
@@ -188,7 +197,6 @@ def addAccountToDB(account):
         return -1
     if(fetchAccountByPuuid(account["puuid"])):  #account is already in the database, don't do anything
         return 0
-    global DB, cursor
     formatStr = """
     INSERT INTO accounts (profileIconId, name, puuid, summonerLevel, accountId, id, revisionDate, data)
     VALUES ({icon},"{name}","{puuid}",{level},"{accId}","{summId}",{date},?);
@@ -206,7 +214,6 @@ def addMatchToDB(match):
         return -1
     if(fetchMatch(match["gameId"])):
         return 0
-    global DB, cursor
     formatStr = """
     INSERT INTO matches (gameId, gameCreation, mapId, queueId, seasonId, gameDuration, gameMode, 
     gameType, platformId, gameVersion, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, data) 
@@ -234,14 +241,11 @@ Methods for updating existing records in the database
 """
 
 def updateAccountName(name,puuid):
-    global DB, cursor
     cmd = "UPDATE accounts SET name = \"" + name.lower() + "\" WHERE puuid = \"" + puuid + "\""
     cursor.execute(cmd)
     DB.commit()
     
 def updateChamps(champs,version):
-    global DB, cursor
-    print("updating champs in dbcalls.py")
     cursor.execute("DELETE FROM champions;")
     formatStr = """
     INSERT INTO champions (version, id, name, key, partype, 
@@ -252,7 +256,6 @@ def updateChamps(champs,version):
     {aspl},{c},{cPL},{hp},{hpPL},{hpR},{hpRPL},{ms},{mp},{mpPL},{mpR},{mpRPL},{mr},{mrPL},"{t}",?);
     """
     for c in champs:
-        print(c["id"])
         s = c["stats"]
         cmd = formatStr.format(v=version,iD=c["id"],n=c["name"].lower(),k=c["key"],pT=c["partype"],arm=s["armor"],
                                armPL=s["armorperlevel"],ad=s["attackdamage"],adPL=s["attackdamageperlevel"],
@@ -264,25 +267,56 @@ def updateChamps(champs,version):
         data = json.dumps(c)
         cursor.execute(cmd,(data,))
     DB.commit()
-    return 0
     
-def updateItems(items):
-    return 0
+def updateItems(items,version):
+    cursor.execute("DELETE FROM items;")
+    formatStr = """
+    INSERT INTO items (version, colloq, baseCost, purchasable, sellCost, totalCost, onSR, 
+    name, number, data) VALUES ("{v}","{c}",{bC},{p},{sC},{tC},{SR},"{name}","{num}",?);
+    """
+    for n in items:
+        i = items[n]
+        gold = i["gold"]
+        purchasable = 1 if i["gold"]["purchasable"] else 0
+        onSR = 1 if i["maps"]["11"] else 0
+        cmd = formatStr.format(v=version,c=i["colloq"],bC=gold["base"],p=purchasable,
+                               sC=gold["sell"],tC=gold["total"],SR=onSR,name=i["name"],num=n)
+        data = json.dumps(items[n])
+        cursor.execute(cmd,(data,))
+    DB.commit()
 
-def updateSpells(spells):   #summoner spells
-    return 0
+def updateSpells(spells,version):   #summoner spells
+    """
+    CREATE TABLE sSpells (
+    version VARCHAR(16),
+    name VARCHAR(32),
+    cd int,
+    key int,
+    data TEXT
+    );
+    """
+    cursor.execute("DELETE FROM sSpells;")
+    formatStr = """
+    INSERT INTO sSpells (version, name, cd, key, onSR, data) 
+    VALUES ("{v}","{n}",{cd},{k},{onSR},?);
+    """
+    for summ in spells:
+        s = spells[summ]
+        SR = 1 if "CLASSIC" in s["modes"] else 0
+        cmd = formatStr.format(v=version,n=s["name"],cd=s["cooldownBurn"],k=s["key"],onSR=SR)
+        data = json.dumps(spells[summ])
+        cursor.execute(cmd,(data,))
+    DB.commit()
 
 """
 Methods for querying the database for records
 """
 
 def fetchChamp(cmd):
-    global cursor
     cursor.execute(cmd)
     result = cursor.fetchall()
     assert not len(result) > 1, "more than one champ with the same identifier"
     if(not result):
-        print("did not find champion")
         return {}
     else:
         return json.loads(result[0][0])
@@ -296,47 +330,16 @@ def fetchChampByKey(key):
     return fetchChamp(cmd)
 
 def fetchMatch(gameId):
-    global cursor
-    cmd = "SELECT * FROM matches WHERE gameId = " + (str)(gameId)
+    cmd = "SELECT data FROM matches WHERE gameId = " + (str)(gameId)
     cursor.execute(cmd)
     result = cursor.fetchall()
     assert not len(result) > 1, "more than one of the same gameId"
     if(not result): #if result is empty
-        print("did not find match")
         return {}
     else:
-        return matchTupleToMatchDict(result[0])
-    
-def matchTupleToMatchDict(matchTuple):
-    assert len(matchTuple) == 23, "matchTuple is of the incorrect length"
-    matchDict = {}
-    matchDict["gameId"] = matchTuple[0]
-    matchDict["gameCreation"] = matchTuple[1]
-    matchDict["mapId"] = matchTuple[2]
-    matchDict["queueId"] = matchTuple[3]
-    matchDict["seasonId"] = matchTuple[4]
-    matchDict["gameDuration"] = matchTuple[5]
-    matchDict["gameMode"] = matchTuple[6]
-    matchDict["gameType"] = matchTuple[7]
-    matchDict["platformId"] = matchTuple[8]
-    matchDict["gameVersion"] = matchTuple[9]
-    matchDict["p1"] = matchTuple[10]
-    matchDict["p2"] = matchTuple[11]
-    matchDict["p3"] = matchTuple[12]
-    matchDict["p4"] = matchTuple[13]
-    matchDict["p5"] = matchTuple[14]
-    matchDict["p6"] = matchTuple[15]
-    matchDict["p7"] = matchTuple[16]
-    matchDict["p8"] = matchTuple[17]
-    matchDict["p9"] = matchTuple[18]
-    matchDict["p10"] = matchTuple[19]
-    matchDict["participants"] = json.loads(matchTuple[20])
-    matchDict["teams"] = json.loads(matchTuple[21])
-    matchDict["participantIdentities"] = json.loads(matchTuple[22])
-    return matchDict
+        return result[0][0]
 
 def fetchAccount(cmd):
-    global cursor
     cursor.execute(cmd)
     result = cursor.fetchall()
     assert not len(result) > 1, "more than one of the same identifier"
@@ -344,18 +347,6 @@ def fetchAccount(cmd):
         return {}
     else:
         return json.loads(result[0][0])
-    
-def accTupleToAccDict(accTuple):
-    assert len(accTuple) == 8, "accTuple is of the incorrect length"
-    accDict = {}
-    accDict["profileIconId"] = accTuple[0]
-    accDict["name"] = accTuple[1]
-    accDict["puuid"] = accTuple[2]
-    accDict["summonerLevel"] = accTuple[3]
-    accDict["accountId"] = accTuple[4]
-    accDict["id"] = accTuple[5]
-    accDict["revisionDate"] = accTuple[6]
-    return accDict
     
 def fetchAccountByPuuid(puuid):
     cmd = "SELECT data FROM accounts WHERE puuid = \"" + puuid + "\""

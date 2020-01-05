@@ -114,22 +114,27 @@ def getVersion():
     return d["n"]
 
 def updateChamps(version):
+    print("Updating champions...")
     d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/champion.json" + getApiKey())
     champs = []
     for champ in d["data"]:
-        print(champ)
         data = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/champion/" + champ + ".json" + getApiKey())
         champs.append(data["data"][champ])
     dbcalls.updateChamps(champs,version)
+    print("champions successfully updated")
     return champs
         
 def updateItems(version):
+    print("Updating items...")
     d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/item.json" + getApiKey())
-    dbcalls.updateItems(d)
+    dbcalls.updateItems(d["data"],version)
+    print("items successfully updated")
         
 def updateSpells(version):  #summoner spells
+    print("Updating summoner spells...")
     d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/summoner.json" + getApiKey())
-    dbcalls.updateSpells(d)
+    dbcalls.updateSpells(d["data"],version)
+    print("summoner spells successfully updated")
 
 def updateConstants():
     versions = getVersion()
@@ -194,7 +199,6 @@ def getMatch(matchId):
     d = dbcalls.fetchMatch(matchId)
     if(not d):
         d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/matches/" + (str)(matchId) + getApiKey())
-        print("making dbcall")
         dbcalls.addMatchToDB(d)
     return d
 
