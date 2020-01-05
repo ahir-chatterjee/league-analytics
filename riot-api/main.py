@@ -18,7 +18,7 @@ def main():
             handleCmd(cmds)
         
 def handleCmd(cmds):
-    cmd = cmds[0]   #main command
+    cmd = cmds[0].lower()   #main command
     cmdList = [["help"],
                ["opggScout", "teamName", "opgg"],
                ["namesFromOpgg", "opgg"],
@@ -42,13 +42,13 @@ def handleCmd(cmds):
             invalidParameterLength(3,len(cmds))
         else:
             opggcalls.createScoutingReport(cmds[1],cmds[2])
-    elif(cmd == "namesFromOpgg"):
+    elif(cmd == "namesfromopgg"):
         #grabs all of the summoner names from a given opgg. see opggcalls.getNamesFromOpgg
         if(len(cmds) != 2):
             invalidParameterLength(2,len(cmds))
         else:
             print(opggcalls.getNamesFromOpgg(cmds[1]))
-    elif(cmd == "downloadRankedGames"):
+    elif(cmd == "downloadrankedgames"):
         #downloads the ranked games from the supplied names
         if(len(cmds) == 1):
             invalidParameterLength("any number of",len(cmds))
@@ -58,7 +58,7 @@ def handleCmd(cmds):
                 account = riotapicalls.getAccountByName(name)
                 riotapicalls.getAllRankedMatchesByAccount(account)  #saves them into a file called name.txt, with a "version" of the season
     else:
-        print("Command not recognized. Try \"help\" for a list of recognized commands")
+        print("Command not recognized. Try \"help\" for a list of recognized commands.")
         
 def invalidParameterLength(expected,actual):
     print("Expected " + (str)(expected) + " parameters, receieved " + (str)(actual-1) + " parameters.")

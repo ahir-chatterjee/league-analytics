@@ -40,10 +40,16 @@ def getNamesFromOpggTest():
     
 def updateConstantsTest():
     riotapicalls.updateConstants()
+    
+def fetchMatchesByNameTest():
+    matches1 = dbcalls.fetchMatchesByName("CrusherCake")
+    account = riotapicalls.getAccountByName("mello mental")
+    matches2 = dbcalls.fetchMatchesByAccount(account)
+    assert len(matches1) > 900, "didn't get CrusherCake ranked matches"
+    assert len(matches2) > 0, "didn't get mello mental ranked matches"
 
 def main():
-    updateConstantsTest()
-    dbcalls.printTables()
+    fetchMatchesByNameTest()
     
 if __name__ == '__main__':
     main()

@@ -5,11 +5,15 @@ import time
 import dbcalls
         
 API_KEY = ""
-API_RATE_LIMIT = 120    #a standard API_KEY refreshes every 2 minutes, or 120 seconds
+#API_RATE_LIMIT = 120    #a standard API_KEY refreshes every 2 minutes, or 120 seconds
 
 """
 Overall useful functions that don't necessarily relate to the Riot API.
 """
+
+"""
+depricated functions. anything that relies on these is out of data, and
+should by using 'dbcalls.py' instead.
 
 def saveFile(fileName, data):
     overwrite = False
@@ -29,11 +33,6 @@ def saveFile(fileName, data):
         print(fileName + " saved successfully.")
 
 def loadFile(fileName):
-    """
-    When saved, our output is a list of [data], so we 
-    need to return an empty list to be certain it 
-    worked and doesn't break.
-    """
     wrapperList = [] 
     if(os.path.exists(fileName)):
         tempStr = ""
@@ -48,6 +47,7 @@ def loadFile(fileName):
     else:
         print("Could not find a file named " + fileName + ".")
     return wrapperList
+"""
 
 def getApiKey():
     """
@@ -79,21 +79,37 @@ def makeApiCall(url):
         if(not d.get("status") == None):    #if we have a status on our hands
             RATE_LIMIT_EXCEEDED = 429
             FORBIDDEN = 403
-            NOTFOUND = 404
+            NOT_FOUND = 404
+            SERVER_ERROR = 500
+            BAD_GATEWAY = 502
             UNAVAILABLE = 503
+            GATEWAY_TIMEOUT = 504
             statusCode = d["status"]["status_code"]
             if(statusCode == RATE_LIMIT_EXCEEDED):
-                global API_RATE_LIMIT
-                print("Rate limit exceeded, waiting for " + (str)(API_RATE_LIMIT) + " seconds.")
-                time.sleep(API_RATE_LIMIT)
+                #global API_RATE_LIMIT
+                #print("Rate limit exceeded, waiting for " + (str)(API_RATE_LIMIT) + " seconds.")
+                #time.sleep(API_RATE_LIMIT)
+                time.sleep(5)
                 request = requests.get(url)
                 d = json.loads(request.text)
             elif(statusCode == FORBIDDEN):
                 print("API_KEY is incorrect. Please update your apikey.txt from https://developer.riotgames.com")
-            elif(statusCode == NOTFOUND):
+            elif(statusCode == NOT_FOUND):
                 print("No data was found using the following url: " + url)
             elif(statusCode == UNAVAILABLE):
                 print("Service unavailable, trying again in 5 seconds.")
+                time.sleep(5)
+                return makeApiCall(url)
+            elif(statusCode == GATEWAY_TIMEOUT):
+                print("Gateway timeout, trying again in 5 seconds.")
+                time.sleep(5)
+                return makeApiCall(url)
+            elif(statusCode == SERVER_ERROR):
+                print("Server error, trying again in 5 seconds.")
+                time.sleep(5)
+                return makeApiCall(url)
+            elif(statusCode == BAD_GATEWAY):
+                print("Bad gateway, trying again in 5 seconds.")
                 time.sleep(5)
                 return makeApiCall(url)
             else:
@@ -192,6 +208,7 @@ def getMatchList(accId,queries):
     return d
 
 def getMatchTimeline(matchId):
+    #currently not stored in the local database
     d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/timelines/by-match/" + (str)(matchId) + getApiKey())
     return d
 
@@ -231,6 +248,24 @@ def getMatchListByName(name,queries):
     summoner = getAccountByName(name)
     return getMatchList(summoner["accountId"],queries)
 
+def getAllRankedMatchesByAccount(account):
+    accId = account["accountId"]
+    queries = "&queue=420"
+    matchList = getMatchList(accId,queries)
+    totalGames = matchList["totalGames"]
+    
+    matches = []
+    count = 0
+    while(count < totalGames):
+        matches.extend(getAllMatches(matchList))
+        count += 100
+        queries = "&queue=420&beginIndex=" + (str)(count)
+        matchList = getMatchList(accId,queries)
+        totalGames = matchList["totalGames"]
+        
+    return matches
+"""
+old version that used loadFile and saveFile instead of the sqlite3 db
 def getAllRankedMatchesByAccount(account):
     matches = []
     accId = account["accountId"]
@@ -281,6 +316,7 @@ def checkGameIds(matchList,lastGameId):
         else:
             newMatchList["matches"].append(match)
     return newMatchList
+"""
 
 def getAccountsByNames(names):
     accounts = []

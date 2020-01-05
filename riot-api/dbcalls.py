@@ -12,12 +12,9 @@ global DB, cursor
 DB = sqlite3.connect("riotapi.db") #connect to our database
 cursor = DB.cursor()
 
-def initializeDB():
-    """
-    Should never be called, but this was used to initalize the riotapi.db file
-    """    
-    cursor.execute("DROP TABLE accounts")
-    DB.commit()
+def createAccountsTable():
+    #cursor.execute("DROP TABLE accounts")
+    #DB.commit()
     #hard coded numbers are the max sizes for the respective field, with extra padding just in case
     create_accounts = """
     CREATE TABLE accounts (
@@ -34,8 +31,10 @@ def initializeDB():
     cursor.execute(create_accounts)
     DB.commit()
     
-    cursor.execute("DROP TABLE matches")
-    DB.commit()
+def createMatchesTable():
+    #cursor.execute("DROP TABLE matches")
+    #DB.commit()
+    #uses summIds (account["id"]) to store p1-p10
     create_matches = """
     CREATE TABLE matches (
     gameId int,
@@ -54,10 +53,11 @@ def initializeDB():
     );
     """
     cursor.execute(create_matches)
-    DB.commit()    
+    DB.commit()   
     
+def createChampionsTable():
     #cursor.execute("DROP TABLE champions")
-    DB.commit()
+    #DB.commit()
     create_champions = """
     CREATE TABLE champions (
     version VARCHAR(16),
@@ -89,12 +89,12 @@ def initializeDB():
     data TEXT
     );
     """
-    #cursor.execute(create_champions)
+    cursor.execute(create_champions)
     DB.commit() 
     
-    cursor.execute("DROP TABLE items")
-    DB.commit()
-    #buildPath would normally be "from" but that's a keyword in SQL
+def createItemsTable():
+    #cursor.execute("DROP TABLE items")
+    #DB.commit()
     create_items = """
     CREATE TABLE items (
     version VARCHAR(16),
@@ -111,10 +111,11 @@ def initializeDB():
     );
     """
     cursor.execute(create_items)
-    DB.commit() 
-    
-    cursor.execute("DROP TABLE sSpells")
     DB.commit()
+    
+def createSpellsTable():
+    #cursor.execute("DROP TABLE sSpells")
+    #DB.commit()
     create_sSpells = """
     CREATE TABLE sSpells (
     version VARCHAR(16),
@@ -128,13 +129,47 @@ def initializeDB():
     cursor.execute(create_sSpells)
     DB.commit() 
     
+def createTeamsTable():
+    #cursor.execute("DROP TABLE teams")
+    #DB.commit()
+    #25 summonerIds and 25 names to account for way more than possible accounts on a team
+    create_teams = """
+    date DATE,
+    teamName VARCHAR(64),
+    id1 VARCHAR(128),id2 VARCHAR(128),id3 VARCHAR(128),id4 VARCHAR(128),id5 VARCHAR(128),
+    id6 VARCHAR(128),id7 VARCHAR(128),id8 VARCHAR(128),id9 VARCHAR(128),id10 VARCHAR(128),
+    id11 VARCHAR(128),id12 VARCHAR(128),id13 VARCHAR(128),id14 VARCHAR(128),id15 VARCHAR(128),
+    id16 VARCHAR(128),id17 VARCHAR(128),id18 VARCHAR(128),id19 VARCHAR(128),id20 VARCHAR(128),
+    id21 VARCHAR(128),id22 VARCHAR(128),id23 VARCHAR(128),id24 VARCHAR(128),id25 VARCHAR(128),
+    n1 VARCHAR(16),n2 VARCHAR(16),n3 VARCHAR(16),n4 VARCHAR(16),n5 VARCHAR(16),
+    n6 VARCHAR(16),n7 VARCHAR(16),n8 VARCHAR(16),n9 VARCHAR(16),n10 VARCHAR(16),
+    n11 VARCHAR(16),n12 VARCHAR(16),n13 VARCHAR(16),n14 VARCHAR(16),n15 VARCHAR(16),
+    n16 VARCHAR(16),n17 VARCHAR(16),n18 VARCHAR(16),n19 VARCHAR(16),n20 VARCHAR(16),
+    n21 VARCHAR(16),n22 VARCHAR(16),n23 VARCHAR(16),n24 VARCHAR(16),n25 VARCHAR(16),
+    accounts TEXT
+    );
+    """
+    cursor.execute(create_teams)
+    DB.commit()
+
+def initializeDB():
+    """
+    Should never be called, but this was used to initalize the riotapi.db file
+    """
+    createAccountsTable()
+    createMatchesTable()
+    createChampionsTable()
+    createItemsTable()
+    createSpellsTable()
+    createTeamsTable()
+    
 def printTable(tableName):
     cmd = "SELECT * from " + tableName
     cursor.execute(cmd)
     results = cursor.fetchall()
     print((str)(len(results)) + " " + tableName + ":")
-    for r in results:
-        print(r)
+    #for r in results:
+        #print(r)
     
 def printTables():
     """
@@ -337,7 +372,7 @@ def fetchMatch(gameId):
     if(not result): #if result is empty
         return {}
     else:
-        return result[0][0]
+        return json.loads(result[0][0])
 
 def fetchAccount(cmd):
     cursor.execute(cmd)
@@ -363,3 +398,26 @@ def fetchAccountBySummId(summId):
 def fetchAccountByName(name):
     cmd = "SELECT data FROM accounts WHERE name = \"" + name.lower() + "\""
     return fetchAccount(cmd)
+
+def fetchMatchesByAccount(account):
+    formatStr = """SELECT data FROM matches WHERE p1 = "{sId}" OR p2 = "{sId}" OR 
+    p3 = "{sId}" OR p4 = "{sId}" OR p5 = "{sId}" OR p6 = "{sId}" OR 
+    p7 = "{sId}" OR p8 = "{sId}" OR p9 = "{sId}" OR p10 = "{sId}"; 
+    """
+    cmd = formatStr.format(sId=account["id"])
+    cursor.execute(cmd)
+    results = cursor.fetchall()
+    if(not results):    #if result is empty
+        return []
+    else:
+        matches = []
+        for match in results:
+            matches.append(json.loads(match[0]))
+        return matches
+    
+def fetchMatchesByName(name):
+    account = fetchAccountByName(name)
+    if(account):
+        return fetchMatchesByAccount(fetchAccountByName(name))
+    else:
+        return {}
