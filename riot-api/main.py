@@ -36,7 +36,7 @@ def handleCmd(cmds):
                         print(c[i])
                     else:
                         print(c[i],end=', ')
-    elif(cmd == "opggScout"):
+    elif(cmd == "opggscout"):
         #creates a scouting report from the given opgg. see opggcalls.opggScout for more details
         if(len(cmds) != 3):
             invalidParameterLength(3,len(cmds))
