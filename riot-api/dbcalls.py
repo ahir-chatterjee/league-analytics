@@ -7,6 +7,7 @@ Created on Thu Jan  2 16:14:03 2020
 
 import sqlite3
 import json
+import time
 
 global DB, cursor
 DB = sqlite3.connect("riotapi.db") #connect to our database
@@ -129,13 +130,28 @@ def createSpellsTable():
     cursor.execute(create_sSpells)
     DB.commit() 
     
+def createRunesTable():
+    #cursor.execute("DROP TABLE runes")
+    #DB.commit()
+    create_runes = """
+    CREATE TABLE runes (
+    id int,
+    key VARCHAR(16),
+    name VARCHAR(16),
+    data TEXT
+    );
+    """
+    cursor.execute(create_runes)
+    DB.commit()
+    
 def createTeamsTable():
     #cursor.execute("DROP TABLE teams")
     #DB.commit()
     #25 summonerIds and 25 names to account for way more than possible accounts on a team
     create_teams = """
-    date DATE,
-    teamName VARCHAR(64),
+    CREATE TABLE teams (
+    date VARCHAR(16),
+    name VARCHAR(64),
     id1 VARCHAR(128),id2 VARCHAR(128),id3 VARCHAR(128),id4 VARCHAR(128),id5 VARCHAR(128),
     id6 VARCHAR(128),id7 VARCHAR(128),id8 VARCHAR(128),id9 VARCHAR(128),id10 VARCHAR(128),
     id11 VARCHAR(128),id12 VARCHAR(128),id13 VARCHAR(128),id14 VARCHAR(128),id15 VARCHAR(128),
@@ -156,12 +172,13 @@ def initializeDB():
     """
     Should never be called, but this was used to initalize the riotapi.db file
     """
-    createAccountsTable()
-    createMatchesTable()
-    createChampionsTable()
-    createItemsTable()
-    createSpellsTable()
-    createTeamsTable()
+    #createAccountsTable()
+    #createMatchesTable()
+    #createChampionsTable()
+    #createItemsTable()
+    #createSpellsTable()
+    createRunesTable()  
+    #createTeamsTable()
     
 def printTable(tableName):
     cmd = "SELECT * from " + tableName
@@ -175,11 +192,7 @@ def printTables():
     """
     Purely a debug method
     """    
-    printTable("accounts")
-    printTable("matches")
-    printTable("champions")
-    printTable("items")
-    printTable("sSpells")
+    printTable("runes")
         
 """
 Table update method for dynamic data that changes per patch (champions, items, sSpells)
@@ -227,8 +240,40 @@ def checkForUpdates(versions):
 Methods for adding a record to the database
 """  
 
+def addTeamToDB(name,accounts):
+    if(not name or not accounts):   #passed useless data
+        return -1
+    now = time.localtime()
+    date = (str)(now.tm_mon) + "-" + (str)(now.tm_mday) + "-" + (str)(now.tm_year)  #dd/mm/yyyy
+    if(fetchTeam(name,date)):
+        cmd = "DELETE FROM teams WHERE name = " + "\"" + name.lower() + "\" AND date = \"" + date + "\""
+        cursor.execute(cmd)
+    formatStr = """
+    INSERT INTO teams (date, name, id1, id2, id3, id4, id5, id6, id7, id8, id9, id10, id11, 
+    id12, id13, id14, id15, id16, id17, id18, id19, id20, id21, id22, id23, id24, id25, n1, n2, 
+    n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, n16, n17, n18, n19, n20, n21, n22, 
+    n23, n24, n25, accounts) VALUES ("{d}","{n}",?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+    ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
+    """
+    cmd = formatStr.format(d=date,n=name)
+    playersInfo = []
+    for num in range(0,50):
+        i = num%25
+        account = {"name":"","id":""}
+        if(i < len(accounts)):
+            account = accounts[i]
+        if(num < 25):
+            playersInfo.append(account["id"])
+        else:
+            playersInfo.append(account["name"])
+    playersInfo.append(json.dumps(accounts))
+    playersInfo = tuple(playersInfo)
+    cursor.execute(cmd,playersInfo)
+    DB.commit()
+    return 1
+
 def addAccountToDB(account):
-    if(not account):  #account wasn't found, don't do anything
+    if(not "puuid" in account):  #account wasn't found, don't do anything
         return -1
     if(fetchAccountByPuuid(account["puuid"])):  #account is already in the database, don't do anything
         return 0
@@ -245,9 +290,9 @@ def addAccountToDB(account):
     return 1
 
 def addMatchToDB(match):
-    if(not match):    #match wasn't found, don't do anything
+    if(not "gameId" in match):    #match wasn't found, don't do anything
         return -1
-    if(fetchMatch(match["gameId"])):
+    if(fetchMatch(match["gameId"])):    #match was already in the database
         return 0
     formatStr = """
     INSERT INTO matches (gameId, gameCreation, mapId, queueId, seasonId, gameDuration, gameMode, 
@@ -321,15 +366,6 @@ def updateItems(items,version):
     DB.commit()
 
 def updateSpells(spells,version):   #summoner spells
-    """
-    CREATE TABLE sSpells (
-    version VARCHAR(16),
-    name VARCHAR(32),
-    cd int,
-    key int,
-    data TEXT
-    );
-    """
     cursor.execute("DELETE FROM sSpells;")
     formatStr = """
     INSERT INTO sSpells (version, name, cd, key, onSR, data) 
@@ -342,10 +378,37 @@ def updateSpells(spells,version):   #summoner spells
         data = json.dumps(spells[summ])
         cursor.execute(cmd,(data,))
     DB.commit()
+    
+def updateRunes(runes):
+    cursor.execute("DELETE FROM runes;")
+    formatStr = """
+    INSERT INTO runes (id, key, name, data) 
+    VALUES ({iD},"{k}","{n}",?);
+    """
+    for tree in runes:
+        cmd = formatStr.format(iD=tree["id"],k=tree["key"],n=tree["name"])
+        data = json.dumps(tree)
+        cursor.execute(cmd,(data,))
+        for slot in tree["slots"]:
+            for rune in slot["runes"]:
+                cmd = formatStr.format(iD=rune["id"],k=rune["key"],n=rune["name"])
+                data = json.dumps(rune)
+                cursor.execute(cmd,(data,))
+    DB.commit()
 
 """
 Methods for querying the database for records
 """
+
+def fetchTeam(name,date):
+    cmd = "SELECT accounts FROM teams WHERE name = " + "\"" + name.lower() + "\" AND date = \"" + date + "\""
+    cursor.execute(cmd)
+    result = cursor.fetchall()
+    assert not len(result) > 1, "more than one team with the same name AND date"
+    if(not result):
+        return []
+    else:
+        return json.loads(result[0][52])
 
 def fetchChamp(cmd):
     cursor.execute(cmd)
@@ -363,6 +426,42 @@ def fetchChampByName(name):
 def fetchChampByKey(key):
     cmd = "SELECT data FROM champions WHERE key = " + (str)(key)
     return fetchChamp(cmd)
+
+def fetchItem(cmd):
+    cursor.execute(cmd)
+    result = cursor.fetchall()
+    assert not len(result) > 1, "more than one item with the same identifier"
+    if(not result):
+        return {}
+    else:
+        return json.loads(result[0][0])
+
+def fetchItemByName(name):
+    cmd = "SELECT data FROM items WHERE name = " + "\"" + name.lower() + "\""
+    return fetchItem(cmd)
+
+def fetchItemByNumber(num):
+    if(num == 0):
+        return {}
+    cmd = "SELECT data FROM items WHERE number = " + (str)(num)
+    return fetchItem(cmd)
+
+def fetchRune(cmd):
+    cursor.execute(cmd)
+    result = cursor.fetchall()
+    assert not len(result) > 1, "more than one rune with the same identifier"
+    if(not result):
+        return {}
+    else:
+        return json.loads(result[0][0])
+
+def fetchRuneByName(name):
+    cmd = "SELECT data FROM runes WHERE name = " + "\"" + name.lower() + "\""
+    return fetchRune(cmd)
+
+def fetchRuneById(key):
+    cmd = "SELECT data FROM runes WHERE id = " + (str)(key)
+    return fetchRune(cmd)
 
 def fetchMatch(gameId):
     cmd = "SELECT data FROM matches WHERE gameId = " + (str)(gameId)
@@ -421,3 +520,27 @@ def fetchMatchesByName(name):
         return fetchMatchesByAccount(fetchAccountByName(name))
     else:
         return {}
+    
+"""
+Generally useful methods built on top of the database calls
+"""
+
+def translateChamp(key):
+    champ = fetchChampByKey(key)
+    return champ["name"]
+
+def translateItem(num):
+    item = fetchItemByNumber(num)
+    if(item):
+        return item["name"]
+    else:
+        return ""
+    
+def translateRune(key):
+    rune = fetchRuneById(key)
+    if(rune):
+        return rune["name"]
+    else:
+        return ""
+
+#rune = translateRune(8100)

@@ -7,48 +7,6 @@ import dbcalls
 API_KEY = ""
 #API_RATE_LIMIT = 120    #a standard API_KEY refreshes every 2 minutes, or 120 seconds
 
-"""
-Overall useful functions that don't necessarily relate to the Riot API.
-"""
-
-"""
-depricated functions. anything that relies on these is out of data, and
-should by using 'dbcalls.py' instead.
-
-def saveFile(fileName, data):
-    overwrite = False
-    if(os.path.exists(fileName)):
-        overwrite = True
-    elif(fileName.rfind('/') > 0):
-        path = fileName[0:fileName.rfind('/')]
-        if(not os.path.exists(path)):
-            os.makedirs(path)
-    with open(fileName,'w') as outfile:
-        wrapperList = []
-        wrapperList.append(data)
-        json.dump(wrapperList,outfile)
-    if(overwrite):
-        print(fileName + " saved and overwritten successfully.")
-    else:
-        print(fileName + " saved successfully.")
-
-def loadFile(fileName):
-    wrapperList = [] 
-    if(os.path.exists(fileName)):
-        tempStr = ""
-        openFile = open(fileName,'r')
-        for line in openFile:
-            tempStr += line
-        if(tempStr):    #if tempStr is not empty
-            wrapperList = json.loads(tempStr)  
-        else:
-            print(fileName + " is an empty file.")
-        openFile.close()
-    else:
-        print("Could not find a file named " + fileName + ".")
-    return wrapperList
-"""
-
 def getApiKey():
     """
     Either loads in the API_KEY or just returns the value if already loaded.
@@ -86,12 +44,15 @@ def makeApiCall(url):
             GATEWAY_TIMEOUT = 504
             statusCode = d["status"]["status_code"]
             if(statusCode == RATE_LIMIT_EXCEEDED):
+                #old way of doing this
                 #global API_RATE_LIMIT
                 #print("Rate limit exceeded, waiting for " + (str)(API_RATE_LIMIT) + " seconds.")
                 #time.sleep(API_RATE_LIMIT)
+                #request = requests.get(url)
+                #d = json.loads(request.text)
+                #common enough that we don't want to spam print status messages out
                 time.sleep(5)
-                request = requests.get(url)
-                d = json.loads(request.text)
+                return makeApiCall(url)
             elif(statusCode == FORBIDDEN):
                 print("API_KEY is incorrect. Please update your apikey.txt from https://developer.riotgames.com")
             elif(statusCode == NOT_FOUND):
@@ -151,7 +112,16 @@ def updateSpells(version):  #summoner spells
     d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/summoner.json" + getApiKey())
     dbcalls.updateSpells(d["data"],version)
     print("summoner spells successfully updated")
-
+    
+def updateRunes(version):
+    print("Updating runes...")
+    d = makeApiCall("http://ddragon.leagueoflegends.com/cdn/" + version + "/data/en_US/runesReforged.json" + getApiKey())
+    if(d):
+        dbcalls.updateRunes(d)
+        print("runes successfully updated")
+    else:
+        print("Error with updating runes.")
+    
 def updateConstants():
     versions = getVersion()
     updatesNeeded = dbcalls.checkForUpdates(versions)   #list with three booleans, [champs,items,summoners]
@@ -161,15 +131,18 @@ def updateConstants():
         updateItems(versions["item"])
     if(updatesNeeded[2]):
         updateSpells(versions["summoner"])
+    updateRunes(versions["champion"])   #there's no way to be sure runes don't need an update, so update them everytime
     
 """
-Summoner entpoints. Get an account's information by different methods.
+Summoner endpoints. Get an account's information by different methods.
 """
     
 def getAccountByName(name):
     d = dbcalls.fetchAccountByName(name)
     if(not d):  #if d is empty, make the apiCall
         d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/" + name + getApiKey())
+        if(not "puuid" in d):
+            return d
         acc = dbcalls.fetchAccountByPuuid(d["puuid"])   #check for a potential name change
         if(acc):  #if acc is not empty, that means the user name changed
             dbcalls.updateAccountName(d["name"],d["puuid"])
@@ -264,62 +237,11 @@ def getAllRankedMatchesByAccount(account):
         totalGames = matchList["totalGames"]
         
     return matches
-"""
-old version that used loadFile and saveFile instead of the sqlite3 db
-def getAllRankedMatchesByAccount(account):
-    matches = []
-    accId = account["accountId"]
-    name = account["name"]
-    seasonId = getMostRecentSeasonId()
-    fileName = "summoners/"+name+"S"+(str)(seasonId)+".txt"
-    
-    f = loadFile(fileName)
-    lastGameId = 0
-    if(f and f[0]["seasonId"] == seasonId): #if the file is not empty and the seasonId is correct
-        lastGameId = f[0]["matches"][0]["gameId"]
-        print((str)(len(f[0]["matches"])) + " ranked matches already downloaded.")
-    
-    prevSize = 0
-    queries = "&queue=420"
-    matchList = getMatchList(accId,queries)
-    totalGames = matchList["totalGames"]    #need to find the real amount of total games (accounting for season changes)
-    
-    print((str)(totalGames) + " total ranked games possible to download.")
-    for num in range(0,(int)(totalGames/100)): #need the +1 because of integer division (truncation)
-        matchList = checkGameIds(matchList,lastGameId)
-        matches.extend(getAllMatches(matchList))
-        if(not len(matches) == 100 + prevSize): #if we didn't add 100 matches, it's because we reached the end of the season, a duplicate match, or the last set of games
-            break
-        else:
-            prevSize = len(matches)
-            
-        queries = "&queue=420&beginIndex=" + (str)((num+1)*100)
-        matchList = getMatchList(accId,queries)
-        
-    matchesDownloaded = len(matches)
-    if(not matches):    #if matches is empty
-        print("No ranked matches downloaded.")
-        return f[0]["matches"]
-    else:
-        print((str)(matchesDownloaded) + " ranked matches actually downloaded.")
-        if(f and f[0]["seasonId"] == seasonId): #if the file is loaded and the seasonId matches
-            matches.extend(f[0]["matches"])    #add back the matches we loaded in at the beginning
-        
-    saveFile(fileName,{"matches":matches,"seasonId":seasonId})
-    return matches
-
-def checkGameIds(matchList,lastGameId):
-    newMatchList = {"matches":[]}
-    for match in matchList["matches"]:
-        if(match["gameId"] == lastGameId):  #found the last match that is the same, we don't need to keep going, so we're done
-            break
-        else:
-            newMatchList["matches"].append(match)
-    return newMatchList
-"""
 
 def getAccountsByNames(names):
     accounts = []
     for name in names:
-        accounts.append(getAccountByName(name))
+        account = getAccountByName(name)
+        if("puuid" in account):
+            accounts.append(account)
     return accounts

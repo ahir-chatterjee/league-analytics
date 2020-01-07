@@ -47,9 +47,17 @@ def fetchMatchesByNameTest():
     matches2 = dbcalls.fetchMatchesByAccount(account)
     assert len(matches1) > 900, "didn't get CrusherCake ranked matches"
     assert len(matches2) > 0, "didn't get mello mental ranked matches"
+    
+def getNamesFromOpggTest2():
+    opgg = "https://na.op.gg/multi/query=shorthop%2Cwinst%C3%B3n%2Cthisnamethough%2Cautolocksaber%2Cuwochim%2Carfarfawoo%C3%B2w%C3%B3o%2Cblazednova%2Cloyal%2Cra%C3%AFlgun"
+    correctNames = ["shorthop","blazednova","loyal","autolocksaber","Winstón","thisnamethough","uwochim","arfARFAwOoÒwÓo","RaÏlgun"]
+    names = opggcalls.getNamesFromOpgg(opgg)
+    for name in correctNames:
+        if name.lower() not in names:
+            print(name + " not found.")
 
 def main():
-    fetchMatchesByNameTest()
+    getNamesFromOpggTest2()
     
 if __name__ == '__main__':
     main()
