@@ -632,4 +632,4 @@ def updateAccounts():
             count += 1
             #print("Found an account to update! From " + accName + " to " + name)
             updateAccountName(name,d["puuid"])
-    return(count)
+    return count

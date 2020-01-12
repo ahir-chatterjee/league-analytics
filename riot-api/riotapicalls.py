@@ -281,8 +281,3 @@ def downloadFromLadder():
                 print()
                 #print()
                 league = getLeagueExp(queue,tier,division,page)
-                
-def downloadTimelines():
-    matchIds = dbcalls.fetchAllMatchIds()
-    for matchId in matchIds:
-        getMatchTimeline(matchId[0])
