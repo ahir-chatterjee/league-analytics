@@ -36,6 +36,7 @@ def makeApiCall(url):
     if(type(d) is dict):
         if(not d.get("status") == None):    #if we have a status on our hands
             RATE_LIMIT_EXCEEDED = 429
+            BAD_REQUEST = 400
             FORBIDDEN = 403
             NOT_FOUND = 404
             SERVER_ERROR = 500
@@ -73,6 +74,8 @@ def makeApiCall(url):
                 print("Bad gateway, trying again in 5 seconds.")
                 time.sleep(5)
                 return makeApiCall(url)
+            elif(statusCode == BAD_REQUEST):
+                return {}
             else:
                 print("Unknown status code: " + (str)(statusCode))
     
@@ -145,7 +148,9 @@ def getAccountByName(name):
             return d
         acc = dbcalls.fetchAccountByPuuid(d["puuid"])   #check for a potential name change
         if(acc):  #if acc is not empty, that means the user name changed
-            dbcalls.updateAccountName(d["name"],d["puuid"])
+            if(not acc["name"] == d["name"]):
+                print("name change found! From " + (str)(acc["name"]) + " to " + (str)(d["name"]))
+                dbcalls.updateAccountName(name,d["puuid"])
             d = dbcalls.fetchAccountByPuuid(d["puuid"])
         else:
             dbcalls.addAccountToDB(d)   #store all the information for this account so we can store its history
@@ -181,8 +186,10 @@ def getMatchList(accId,queries):
     return d
 
 def getMatchTimeline(matchId):
-    #currently not stored in the local database
-    d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/timelines/by-match/" + (str)(matchId) + getApiKey())
+    d = dbcalls.fetchTimeline(matchId)
+    if(not d):
+        d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/timelines/by-match/" + (str)(matchId) + getApiKey())
+        dbcalls.addTimelineToDB(d,matchId)
     return d
 
 def getMatch(matchId):
@@ -190,7 +197,18 @@ def getMatch(matchId):
     if(not d):
         d = makeApiCall("https://na1.api.riotgames.com/lol/match/v4/matches/" + (str)(matchId) + getApiKey())
         dbcalls.addMatchToDB(d)
+        getMatchTimeline(matchId)
     return d
+
+"""
+League endpoints.
+"""
+
+def getLeagueExp(queue,tier,division,page):
+    url = "https://na1.api.riotgames.com/lol/league-exp/v4/entries/"
+    url += queue + "/" + tier + "/" + division + getApiKey() + "&page=" + (str)(page)
+    print(url)
+    return makeApiCall(url)
 
 """
 Important methods built on top of riotapicalls that use the above endpoints to do useful things.
@@ -245,3 +263,26 @@ def getAccountsByNames(names):
         if("puuid" in account):
             accounts.append(account)
     return accounts
+
+def downloadFromLadder():
+    queue = "RANKED_SOLO_5x5"
+    tiers = ["CHALLENGER","GRANDMASTER","MASTER","DIAMOND","PLATINUM"]
+    divisons = ["II","III","IV"]#["I","II","III","IV"]
+    for tier in tiers:
+        for division in divisons:
+            page = 1
+            league = getLeagueExp(queue,tier,division,page)
+            while(league):
+                for entry in league:
+                    print(entry["summonerName"],end=", ")
+                    account = getAccountByName(entry["summonerName"])
+                    getAllRankedMatchesByAccount(account)
+                page += 1
+                print()
+                #print()
+                league = getLeagueExp(queue,tier,division,page)
+                
+def downloadTimelines():
+    matchIds = dbcalls.fetchAllMatchIds()
+    for matchId in matchIds:
+        getMatchTimeline(matchId[0])

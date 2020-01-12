@@ -56,6 +56,19 @@ def createMatchesTable():
     cursor.execute(create_matches)
     DB.commit()   
     
+def createTimelinesTable():
+    #cursor.execute("DROP TABLE timelines")
+    #DB.commit()
+    #uses summIds (account["id"]) to store p1-p10
+    create_timelines = """
+    CREATE TABLE timelines (
+    gameId int,
+    data TEXT
+    );
+    """
+    cursor.execute(create_timelines)
+    DB.commit()
+    
 def createChampionsTable():
     #cursor.execute("DROP TABLE champions")
     #DB.commit()
@@ -177,22 +190,27 @@ def initializeDB():
     #createChampionsTable()
     #createItemsTable()
     #createSpellsTable()
-    createRunesTable()  
+    #createRunesTable()  
     #createTeamsTable()
+    #createTimelinesTable()
     
 def printTable(tableName):
-    cmd = "SELECT * from " + tableName
+    cmd = "SELECT COUNT(*) from " + tableName
     cursor.execute(cmd)
     results = cursor.fetchall()
-    print((str)(len(results)) + " " + tableName + ":")
-    #for r in results:
-        #print(r)
+    print((str)(results[0][0]) + " " + tableName)
     
 def printTables():
     """
-    Purely a debug method
+    Purely a debug method.
     """    
-    printTable("runes")
+    cmd = "SELECT name from sqlite_master where type= 'table'"
+    cursor.execute(cmd)
+    results = cursor.fetchall()
+    for name in results:
+        printTable(name[0])
+    
+#printTables()
         
 """
 Table update method for dynamic data that changes per patch (champions, items, sSpells)
@@ -279,12 +297,28 @@ def addAccountToDB(account):
         return 0
     formatStr = """
     INSERT INTO accounts (profileIconId, name, puuid, summonerLevel, accountId, id, revisionDate, data)
-    VALUES ({icon},"{name}","{puuid}",{level},"{accId}","{summId}",{date},?);
+    VALUES ({icon},"{n}","{puuid}",{level},"{accId}","{summId}",{date},?);
     """
-    cmd = formatStr.format(icon=account["profileIconId"],name=(account["name"].lower()),
+    name = account["name"].lower()
+    name = name.replace(" ","")
+    cmd = formatStr.format(icon=account["profileIconId"],n=name,
                            puuid=account["puuid"],level=account["summonerLevel"],
                            accId=account["accountId"],summId=account["id"],date=account["revisionDate"])
     data = json.dumps(account)
+    cursor.execute(cmd,(data,))
+    DB.commit()
+    return 1
+
+def addTimelineToDB(timeline,gameId):
+    if(not timeline):
+        return -1
+    if(fetchTimeline(gameId)):
+        return 0
+    formatStr = """
+    INSERT INTO timelines (gameId, data) VALUES ({gId},?);
+    """
+    data = json.dumps(timeline)
+    cmd = formatStr.format(gId=gameId)
     cursor.execute(cmd,(data,))
     DB.commit()
     return 1
@@ -321,8 +355,15 @@ Methods for updating existing records in the database
 """
 
 def updateAccountName(name,puuid):
-    cmd = "UPDATE accounts SET name = \"" + name.lower() + "\" WHERE puuid = \"" + puuid + "\""
-    cursor.execute(cmd)
+    name = name.lower()
+    name = name.replace(" ","")
+    account = fetchAccountByPuuid(puuid)
+    assert account, "account must be in the database for this method to be called"
+    account["name"] = name
+    data = json.dumps(account)
+    cmd = "UPDATE accounts SET name = \"" + name + "\", data = ? WHERE puuid = \"" + puuid + "\""
+    #print(cmd)
+    cursor.execute(cmd,(data,))
     DB.commit()
     
 def updateChamps(champs,version):
@@ -463,6 +504,16 @@ def fetchRuneById(key):
     cmd = "SELECT data FROM runes WHERE id = " + (str)(key)
     return fetchRune(cmd)
 
+def fetchTimeline(gameId):
+    cmd = "SELECT data FROM timelines WHERE gameId = " + (str)(gameId)
+    cursor.execute(cmd)
+    result = cursor.fetchall()
+    assert not len(result) > 1, "more than one of the same gameId"
+    if(not result):
+        return {}
+    else:
+        return json.loads(result[0][0])
+
 def fetchMatch(gameId):
     cmd = "SELECT data FROM matches WHERE gameId = " + (str)(gameId)
     cursor.execute(cmd)
@@ -495,7 +546,9 @@ def fetchAccountBySummId(summId):
     return fetchAccount(cmd)
 
 def fetchAccountByName(name):
-    cmd = "SELECT data FROM accounts WHERE name = \"" + name.lower() + "\""
+    name = name.lower()
+    name = name.replace(" ","")
+    cmd = "SELECT data FROM accounts WHERE name = \"" + name + "\""
     return fetchAccount(cmd)
 
 def fetchMatchesByAccount(account):
@@ -521,6 +574,24 @@ def fetchMatchesByName(name):
     else:
         return {}
     
+def fetchAllMatchIds():
+    cmd = "SELECT gameId FROM matches"
+    cursor.execute(cmd)
+    results = cursor.fetchall()
+    return results
+    
+"""
+Delete methods
+"""
+
+def deleteAccount(name):
+    cmd = "DELETE FROM accounts WHERE name = " + "\"" + name + "\""
+    try:
+        cursor.execute(cmd)
+    except:
+        cmd = "DELETE FROM accounts WHERE name = ?"
+        cursor.execute(cmd,(name,))
+    
 """
 Generally useful methods built on top of the database calls
 """
@@ -542,5 +613,23 @@ def translateRune(key):
         return rune["name"]
     else:
         return ""
-
-#rune = translateRune(8100)
+    
+def updateAccounts():
+    cmd = "SELECT name, data FROM accounts"
+    cursor.execute(cmd)
+    results = cursor.fetchall()
+    count = 0
+    for account in results:
+        name = account[0]
+        name = name.lower()
+        name = name.replace(" ","")
+        d = json.loads(account[1])
+        accName = d["name"]
+        if(len(name) > 18):
+            print("deleting account because name is too damn long")
+            deleteAccount(name)
+        elif(not name == accName):
+            count += 1
+            #print("Found an account to update! From " + accName + " to " + name)
+            updateAccountName(name,d["puuid"])
+    return(count)

@@ -7,6 +7,7 @@ Created on Mon Dec 23 21:22:15 2019
 
 import riotapicalls
 import opggcalls
+import createScoutingReport
 
 def main():
     while(True):
@@ -41,7 +42,7 @@ def handleCmd(cmds):
         if(len(cmds) != 3):
             invalidParameterLength(3,len(cmds))
         else:
-            opggcalls.createScoutingReport(cmds[1],cmds[2])
+            createScoutingReport.createScoutingReport(cmds[1],cmds[2])
     elif(cmd == "namesfromopgg"):
         #grabs all of the summoner names from a given opgg. see opggcalls.getNamesFromOpgg
         if(len(cmds) != 2):
