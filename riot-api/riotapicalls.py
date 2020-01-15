@@ -59,19 +59,19 @@ def makeApiCall(url):
             elif(statusCode == NOT_FOUND):
                 print("No data was found using the following url: " + url)
             elif(statusCode == UNAVAILABLE):
-                print("Service unavailable, trying again in 5 seconds.")
+                #print("Service unavailable, trying again in 5 seconds.")
                 time.sleep(5)
                 return makeApiCall(url)
             elif(statusCode == GATEWAY_TIMEOUT):
-                print("Gateway timeout, trying again in 5 seconds.")
+                #print("Gateway timeout, trying again in 5 seconds.")
                 time.sleep(5)
                 return makeApiCall(url)
             elif(statusCode == SERVER_ERROR):
-                print("Server error, trying again in 5 seconds.")
+                #print("Server error, trying again in 5 seconds.")
                 time.sleep(5)
                 return makeApiCall(url)
             elif(statusCode == BAD_GATEWAY):
-                print("Bad gateway, trying again in 5 seconds.")
+                #print("Bad gateway, trying again in 5 seconds.")
                 time.sleep(5)
                 return makeApiCall(url)
             elif(statusCode == BAD_REQUEST):
@@ -281,3 +281,6 @@ def downloadFromLadder():
                 print()
                 #print()
                 league = getLeagueExp(queue,tier,division,page)
+                
+korAcc = getAccountBySummId("q1GwyOxmSVLg1OXvrP8vAoXVlTl8CfcvcfJ_Ny7futTrFFQ")
+acc = getAccountBySummId("J-vtCJmGnpsiFyv0rp5kXt7ITF9y9gjhgdBc96byioBHbmk")

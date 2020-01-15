@@ -11,6 +11,7 @@ import dbcalls
 import time
 import createScoutingReport
 import findRelatedAccounts
+#from roleml import roleml
 
 def getAccountTests():
     name = "arf ARF AwOoÒwÓo"
@@ -61,12 +62,12 @@ def getNamesFromOpggTest2():
 
 def createScoutingReportTest():
     start = time.time()
-    report2 = createScoutingReport("Maryville University","https://na.op.gg/multi/query=niles%2CMUIconic%2CMUWolfe%2CValue%2C1Shady%2CJulien1%2Ckindjungle%2Chybridzz%2Cevanrl%2CCIyde")
-    report = createScoutingReport("University of Southern California","https://na.op.gg/multi/query=lofirelax%2Cherking%2Cuschovz%2Cusctechsupport%2Cpo%C4%B1%2Cusckamdono%2Cusc5050352")
-    report3 = createScoutingReport("Grand Canyon University","https://na.op.gg/multi/query=siglere%2CNovawolf%2CPlumberMario%2C4bidden%2CGCUQuicksands%2CSwagnar")
+    #report = createScoutingReport.createScoutingReport("University of Southern California","https://na.op.gg/multi/query=lofirelax%2Cherking%2Cuschovz%2Cusctechsupport%2Cpo%C4%B1%2Cusckamdono%2Cusc5050352%2Cheyimissu%2Cgtinybear%2Cjoejacko")
+    report = createScoutingReport.createScoutingReport("Maryville University","https://na.op.gg/multi/query=niles%2CMUIconic%2CMUWolfe%2CValue%2C1Shady%2Csleeptimego%2Ckindjungle%2Chybridzz%2Cevanrl%2CCIyde")
+    #report3 = createScoutingReport("Grand Canyon University","https://na.op.gg/multi/query=siglere%2CNovawolf%2CPlumberMario%2C4bidden%2CGCUQuicksands%2CSwagnar")
     end = time.time()
     elapsedTime = (end-start)/60
-    return elapsedTime,report,report2,report3
+    return [elapsedTime,report]#,report2]#,report2,report3
 
 def findRelatedAccountsTest():
     #names = ["Noodlz","keep it mello","Poopsers","Celsius HEAT","YellowBumbleBee","arf ARF AwOoÒwÓo","IG TheThigh"]
@@ -75,17 +76,17 @@ def findRelatedAccountsTest():
     #names = ["i am nightshade","móónlight","súnlight","really big meme","argentumsky","dylaran"]
     #names = ["barbecueribs","ino1","easy 10","scherb","lyo"]
     #names = ["the jons","vinnyhuan","golden kiwi","smelp","sharpe","lunarly","0aks"]    #having trouble with Nova Bot (Texas)
-    names = opggcalls.getNamesFromOpgg("https://na.op.gg/multi/query=celsiusheat%2Cigthethigh%2Carfarfawoo%C3%B2w%C3%B3o%2Cpoopsers%2Cnoodlz%2Cra%C3%AFlgun%2Cyellowbumblebee%2Cvelocityone%2Ckeepitmello%2Cas%C3%B8nder")
+    names = ['lofirelax', 'herking', 'uschovz', 'usctechsupport', 'poı', 'usckamdono', 'usc5050352', 'joejacko', 'gtinybear', 'hey i miss u']#opggcalls.getNamesFromOpgg("https://na.op.gg/multi/query=lofirelax%2Cherking%2Cuschovz%2Cusctechsupport%2Cpo%C4%B1%2Cusckamdono%2Cusc5050352")
     start = time.time()
     accounts = []
     for name in names:
         account = riotapicalls.getAccountByName(name)
         accounts.append(account)
     #print(accounts)
-    susAccounts = findRelatedAccounts(accounts)
+    susAccounts = findRelatedAccounts.findRelatedAccounts(accounts)
     end = time.time()
     elapsedTime = end-start
-    return elapsedTime,susAccounts,accounts,names
+    return [elapsedTime,susAccounts,accounts,names]
 
 def downloadTimelines():
     matchIds = dbcalls.fetchAllMatchIds()
@@ -95,13 +96,35 @@ def downloadTimelines():
 def downloadATonOfStuff():
     dbcalls.printTables()
     print("Downloading timelines")
-    riotapicalls.downloadTimelines()
+    downloadTimelines()
     print("updating accounts")
     dbcalls.updateAccounts()
+    
+def roleMLTest():
+    id1 = 3260726596
+    id2 = 3261268214
+    m1 = riotapicalls.getMatch(id1)
+    t1 = riotapicalls.getMatchTimeline(id1)
+    m2 = riotapicalls.getMatch(id2)
+    t2 = riotapicalls.getMatchTimeline(id2)
+    #p1 = roleml.roleml.predict(m1,t1)
+    #p2 = roleml.roleml.predict(m2,t2)
+    return
 
 def main():
-    api = riotapicalls.getAccountByName("Gl in Lotteria")
-    db = dbcalls.fetchAccountByPuuid(api["puuid"])
-    return api,db
+    #return findRelatedAccountsTest()
+    #return riotapicalls.getAccountByName("sleep time go")
+    #return [riotapicalls.getAccountBySummId("eTd3GAfT9uKRx4ixCJgCx_Ms8BW-bktFtUSMrADKQGNXq4g"),
+            #riotapicalls.getAccountBySummId("Y_DtxTaSa5F4OfAZ_nZJOtTxSRmpn8XWGy5ICEB5Rf4wK1c")]
+    #return createScoutingReportTest()
+    #return riotapicalls.getAllRankedMatchesByAccount(riotapicalls.getAccountByName("ZMOD"))
+    opgg = opggcalls.stichIntoMulti(["https://na.op.gg/summoner/userName=siglere",
+                                     "https://na.op.gg/summoner/userName=Novawolf",
+                                     "https://na.op.gg/summoner/userName=PlumberMario",
+                                     "https://na.op.gg/summoner/userName=4bidden",
+                                     "https://na.op.gg/summoner/userName=GCU+Quicksands",
+                                     "https://na.op.gg/summoner/userName=Swagnar"])
+    return createScoutingReport.createScoutingReport("First Blood Crusaders","https://na.op.gg/multi/query=pk1%2Chyami%2Cnevercasual%2Ckpfreeze%2Cyama%CB%89%2CNucIear")
+    #dbcalls.printTables()
     
-variables = main()
+fbc = main()

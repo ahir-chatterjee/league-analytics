@@ -98,7 +98,7 @@ def scrapeMatches(matches,account):
         assert not pId == -1, "player was not in their own game: " + (str)(match["gameId"]) + " | " + (str)(account["name"])
         pData = match["participants"][pId-1]
         msPerWeek = 604800*1000 #milliseconds per week
-        if(now-match["gameCreation"] < msPerWeek*2):   #if the match was within two weeks ago, it is "recent"
+        if(now-match["gameCreation"] < msPerWeek*3):   #if the match was within two weeks ago, it is "recent"
             addInfo(recent,pData)
         addInfo(aggregate,pData)
     analysis = {"recent":recent,"aggregate":aggregate}
@@ -107,13 +107,16 @@ def scrapeMatches(matches,account):
 def createReport(accounts):
     report = {"players":{},"flexes":{}}
     flexes = report["flexes"]
+    timelines = []
     for account in accounts:
         if(account):    #if the account is a valid account
             name = account["name"]
             print("Retrieving all ranked matches from \"" + name + "\"...")
-            #matches = riotapicalls.getAllRankedMatchesByAccount(account)
-            matches = dbcalls.fetchMatchesByAccount(account)
+            matches = riotapicalls.getAllRankedMatchesByAccount(account)
+            #matches = dbcalls.fetchMatchesByAccount(account)
             print((str)(len(matches)) + " ranked matches retrieved from \"" + name + "\".")
+            #for match in matches:
+                #timelines.append(riotapicalls.getMatchTimeline(match["gameId"]))
             data = scrapeMatches(matches,account)
             report["players"][name] = data
         else:
