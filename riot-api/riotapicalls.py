@@ -281,6 +281,3 @@ def downloadFromLadder():
                 print()
                 #print()
                 league = getLeagueExp(queue,tier,division,page)
-                
-korAcc = getAccountBySummId("q1GwyOxmSVLg1OXvrP8vAoXVlTl8CfcvcfJ_Ny7futTrFFQ")
-acc = getAccountBySummId("J-vtCJmGnpsiFyv0rp5kXt7ITF9y9gjhgdBc96byioBHbmk")

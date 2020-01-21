@@ -22,6 +22,15 @@ def stichIntoMulti(opggs):
     multi = multi[:len(multi)-3]    #get rid of the last extraneous "%2C" in the multi
     return multi
 
+def createMultiFromNames(names):
+    multi = "https://na.op.gg/multi/query="
+    for name in names:
+        name = name.lower()
+        name = name.replace(" ","")
+        multi += name + "%2C"
+    multi = multi[:len(multi)-3]
+    return multi
+
 def getNamesFromOpgg(opgg):
     split = opgg.split("query=")    #we only care about the part after query=, which is in split[1]
     if(len(split) < 2):    #passed an invalid op.gg link

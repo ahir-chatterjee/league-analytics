@@ -468,6 +468,19 @@ def fetchChampByKey(key):
     cmd = "SELECT data FROM champions WHERE key = " + (str)(key)
     return fetchChamp(cmd)
 
+def fetchAllItems():
+    cmd = "SELECT data, number FROM items"
+    cursor.execute(cmd)
+    result = cursor.fetchall()
+    itemDict = {}
+    for i in range(0,len(result)):
+        data = json.loads(result[i][0])
+        data["num"] = result[i][1]
+        itemDict[data["name"]] = data
+    return itemDict
+
+items = fetchAllItems()
+
 def fetchItem(cmd):
     cursor.execute(cmd)
     result = cursor.fetchall()
@@ -605,7 +618,7 @@ def translateItem(num):
     if(item):
         return item["name"]
     else:
-        return ""
+        return (str)(num)
     
 def translateRune(key):
     rune = fetchRuneById(key)

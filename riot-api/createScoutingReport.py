@@ -104,10 +104,58 @@ def scrapeMatches(matches,account):
     analysis = {"recent":recent,"aggregate":aggregate}
     return analysis
 
+def sortChampPool(champPool,recent,aggregate):
+    tuples = []
+    minRecentGames = 3  #minimum threshold for reaching the highRecentWeight
+    highRecentWeight = 4    #each game will be x5 as important.
+    recentWeight = 1    #each game will be x2 as important
+    for champ in champPool:
+        if(champ == "lanes"):
+            tuples.append((champ,-1))
+        weight = 0
+        if(champ in recent):
+            matches = recent[champ]["matches"]
+            if(matches >= minRecentGames):
+                weight += matches*highRecentWeight #guarantees at least minRecentGames*highRecentWeight of weight
+            else:
+                weight += matches*recentWeight
+        assert champ in aggregate, champ + " was not found in aggregate."
+        weight += aggregate[champ]["matches"]
+        tuples.append((champ,weight))
+    tuples = sorted(tuples, key=lambda tuples: tuples[1], reverse=True)
+    champPool = []
+    fringe = False
+    fringeThreshold = minRecentGames*highRecentWeight #currently 12
+    for t in tuples:
+        if(not fringe):
+            if t[1] < fringeThreshold:
+                champPool.append("")
+                fringe = True
+        champPool.append(t[0])
+    return champPool
+
+def createChampPools(players):
+    minGameLimit = 8   #min games to have a champ in your champ pool
+    for name in players:
+        player = players[name]
+        player["champPool"] = []
+        champPool = player["champPool"]
+        aggregate = player["aggregate"]
+        recent = player["recent"]
+        for champ in aggregate:
+            if(not champ == "lanes"):   #if the champ is not literally the word "lanes"
+                if(aggregate[champ]["matches"] >= minGameLimit):
+                    champPool.append(champ)
+        for champ in recent:
+            if(not champ == "lanes" and champ not in champPool):
+                champPool.append(champ)
+        player["champPool"] = sortChampPool(champPool,recent,aggregate)
+    return players
+
 def createReport(accounts):
     report = {"players":{},"flexes":{}}
-    flexes = report["flexes"]
-    timelines = []
+    #flexes = report["flexes"]
+    #timelines = []
     for account in accounts:
         if(account):    #if the account is a valid account
             name = account["name"]
@@ -122,34 +170,7 @@ def createReport(accounts):
         else:
             print("Invalid account given.")
             
-    minGameLimit = 15   #min games to have a champ in your champ pool
-    for name in report["players"]:
-        player = report["players"][name]
-        player["champPool"] = []
-        champPool = player["champPool"]
-        aggregate = player["aggregate"]
-        recent = player["recent"]
-        for champ in aggregate:
-            if(not champ == "lanes"):   #if the champ is not literally the word "lanes"
-                if(aggregate[champ]["matches"] >= minGameLimit):
-                    champPool.append(champ)
-        for champ in recent:
-            if(not champ == "lanes" and champ not in champPool):
-                champPool.append(champ)
-        champPool.sort()
-        for champ in champPool:
-            if(champ in flexes):
-                if(not name in flexes[champ]):
-                    flexes[champ].append(name)
-            else:
-                flexes[champ] = [name]
-        
-    notFlexes = []
-    for champ in flexes:
-        if len(flexes[champ]) < 2:
-            notFlexes.append(champ)
-    for champ in notFlexes:
-        flexes.pop(champ)
+    report["players"] = createChampPools(report["players"])
         
     return report
 
@@ -157,7 +178,7 @@ def createScoutingReport(teamName,opgg):
     print("Creating scouting report for " + teamName + "...")
     names = opggcalls.getNamesFromOpgg(opgg)
     accounts = riotapicalls.getAccountsByNames(names)
-    dbcalls.addTeamToDB(teamName,accounts)
+    #dbcalls.addTeamToDB(teamName,accounts)
     report = createReport(accounts)
     print("Scouting report created for " + teamName)
     return report

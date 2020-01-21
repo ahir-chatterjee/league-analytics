@@ -27,19 +27,16 @@ def scrapeMatches(matches,summId):
         for i in range(start,start+5):  #loop through the 5 players on their team
             if(not i == pId-1): 
                 player = match["participantIdentities"][i]["player"]
-                name = player["summonerName"]
                 pSummId = player["summonerId"]
-                #riotapicalls.getAccountBySummId(pSummId)
+                account = riotapicalls.getAccountBySummId(pSummId)
+                name = pSummId
+                if("name" in account):
+                    name =  account["name"]
                 if(name in playedWith):
                     playedWith[name] += 1
                 else:
                     playedWith[name] = 1
                     
-                if(pSummId in playedWith):
-                    playedWith[pSummId] += 1
-                else:
-                    playedWith[pSummId] = 1
-                
     return playedWith
 
 def weightFunction(kv):
@@ -60,6 +57,7 @@ def prunePlayedWith(playedWith):
         playedWith.pop(name)
 
 def findRelatedAccounts(accounts):
+    susAccs = {"similarAccounts":[]}
     similarAccounts = {}
     for account in accounts:
         name = account["name"]
@@ -67,18 +65,16 @@ def findRelatedAccounts(accounts):
         matches = dbcalls.fetchMatchesByAccount(account)
         #matches = riotapicalls.getAllRankedMatchesByAccount(account)
         playedWith = scrapeMatches(matches,account["id"])
-        #playedWith = sorted(playedWith.items(), key=lambda kv: kv[1], reverse=True)
+        print("matches scraped")
         prunePlayedWith(playedWith)
+        print("matches pruned")
+        susAccs[name] = playedWith
         
         for n in playedWith:
             playedWithAcc = playedWith[n]
-            if(len(n) > 18):
-                account = dbcalls.fetchAccountBySummId(n)
-                if(account):
-                    n = account["name"]
-                if(n not in similarAccounts):
-                    similarAccounts[n] = {}
-                similarAccounts[n][name] = playedWithAcc
+            if(n not in similarAccounts):
+                similarAccounts[n] = {}
+            similarAccounts[n][name] = playedWithAcc
             
-    similarAccounts = sorted(similarAccounts.items(), key=lambda kv: weightFunction(kv), reverse=True)
-    return similarAccounts
+    susAccs["similarAccounts"] = list(sorted(similarAccounts.items(), key=lambda kv: weightFunction(kv), reverse=True))
+    return susAccs
