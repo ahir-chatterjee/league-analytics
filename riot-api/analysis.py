@@ -5,17 +5,11 @@ Created on Tue Jan 21 10:17:25 2020
 @author: Ahir
 """
 
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jan  7 12:53:34 2020
-
-@author: Ahir
-"""
-
 import dbcalls
 import riotapicalls
 import opggcalls
 import time
+#from roleml import roleml
 
 """
 Given a match and a summonerId, will return the participantId of the player in the match
@@ -25,6 +19,13 @@ def findParticipantId(match,summId):
         if(p["player"]["summonerId"] == summId):
             return p["participantId"]
     return -1
+
+def getMatchRoles(match,timeline):
+    prediction = roleml.predict(match,timeline)
+    roles = {}
+    for p in match["participantIdentities"]:
+        roles[p["player"]["summonerId"]] = prediction[p["participantId"]]
+    return roles
 
 """
 createScoutingReport() is a method that takes in a teamName and multi.gg link and returns a report.
@@ -190,3 +191,224 @@ def createChampPools(players):
 findRelatedAccounts() is a method that determines suspicious accounts that might be a player's smurf. 
 It takes in a list of names and will look through all of their games 
 """
+
+def findRelatedAccounts(accounts):
+    #need to add degrees of relativity, role played, as well as "duo streaks" (it's how I found USC jungler's smurf via opgg)
+    susAccs = {"similarAccounts":[]}
+    similarAccounts = {}
+    for account in accounts:
+        name = account["name"]
+        matches = dbcalls.fetchMatchesByAccount(account)    #matches are fetched in order of played (oldest to newest)
+        #matches = riotapicalls.getAllRankedMatchesByAccount(account)
+        playedWith = getPlayedWith(matches,account["id"])
+        prunePlayedWith(playedWith)
+        susAccs[name] = playedWith
+        
+        for n in playedWith:
+            playedWithAcc = playedWith[n]
+            if(n not in similarAccounts):
+                similarAccounts[n] = {}
+            similarAccounts[n][name] = playedWithAcc
+            
+    susAccs["similarAccounts"] = list(sorted(similarAccounts.items(), key=lambda kv: weightFunction(kv), reverse=True))
+    return susAccs
+
+def getPlayedWith(matches,summId):
+    playedWith = {}
+    summIds = {}
+    for match in matches:
+        pId = findParticipantId(match,summId)
+        assert not pId == -1, "didn't find pId for some reason | " + (str)(match["gameId"]) + " | " + (str)(len(playedWith))
+        start = (pId//6)*5   #either 0 or 1 after divison, then 0 or 5
+        assert start == 0 or start == 5, "dun goofed " + (str)(start) + " | " + (str)(pId)
+        for i in range(start,start+5):  #loop through the 5 players on their team
+            if(not i == pId-1): 
+                player = match["participantIdentities"][i]["player"]
+                pSummId = player["summonerId"]
+                if pSummId not in summIds:
+                    summIds[pSummId] = 1
+                else:
+                    summIds[pSummId] += 1
+                    
+    for sId in summIds:
+        acc = riotapicalls.getAccountBySummId(sId)
+        name = acc["name"]
+        if(name in playedWith):
+            playedWith[name] += 1
+        else:
+            playedWith[name] = 1
+        
+    return playedWith
+
+def weightFunction(kv):
+    value = kv[1]
+    weightPerPerson = 30 #high value to ensure more people duo'd with == higher weight
+    weight = (len(value)-1)*weightPerPerson
+    for key in value:
+        weight += value[key]
+    return weight
+
+def prunePlayedWith(playedWith):
+    popList = []
+    minNumGames = 5 #random amount, but min number of games required to be relevant
+    for name in playedWith:
+        if(playedWith[name] < minNumGames):
+            popList.append(name)
+    for name in popList:
+        playedWith.pop(name)
+        
+"""
+accountFingerprint() is a method that creates a "unique" fingerprint based off of different factors from an account
+"""
+
+global ALL_ITEMS, ACTIVE_ITEMS, ITEM_DICT
+ALL_ITEMS = dbcalls.fetchAllItems()
+ACTIVE_ITEMS = []
+ITEM_DICT = {}
+for item in ALL_ITEMS:
+    name = ALL_ITEMS[item]["name"]
+    if("Active" in ALL_ITEMS[item]["tags"]):
+        ACTIVE_ITEMS.append(name)
+    ITEM_DICT[ALL_ITEMS[item]["num"]] = name
+            
+def translateItem(num):
+    if(num) == 0:
+        return ""
+    if(item in ITEM_DICT):
+        return ITEM_DICT[num]
+    else:
+        return (str)(num)
+
+def handleInventory(fingerprint):
+    popList = []
+    for item in fingerprint["itemMatrix"]:
+        if(item in ACTIVE_ITEMS):
+            for slot in range(0,7):
+                #divide by total times item is bought to create percentages (slot 7 it total num of item)
+                fingerprint["itemMatrix"][item][slot] /= fingerprint["itemMatrix"][item][7]
+        else:
+            popList.append(item)
+#    for item in popList:    #gets rid of all the non-active items
+#        fingerprint["itemMatrix"].pop(item)
+    return fingerprint
+    
+def getFingerprint(name):
+    fingerprint = {"flash":[0,0],
+                   "numMatches":0,
+                   "itemMatrix":{}
+                   }
+    
+    account = riotapicalls.getAccountByName(name)
+    assert "id" in account, "Invalid name given, no account found for: " + name
+    summId = account["id"]
+    #matches = riotapicalls.getAllRankedMatchesByAccount(account)
+    matches = dbcalls.fetchMatchesByAccount(account)
+    
+    fingerprint["numMatches"] = len(matches)
+    for match in matches:
+        pId = findParticipantId(match,summId)
+        p = match["participants"][pId-1]    #the info for the participant
+            
+        #check which key flash is typically on
+        if(p["spell1Id"] == 4):  #4 is the id for flash
+            fingerprint["flash"][0] += 1
+        elif(p["spell2Id"] == 4):    #else statement because may not have flash
+            fingerprint["flash"][1] += 1
+            
+        #gather item data for all the items in the inventory
+        inventory = []
+        for slot in range(0,7):
+            itemNum = p["stats"]["item"+(str)(slot)]
+            item = dbcalls.translateItem(itemNum) #if invalid item, it is an empty string
+            if(not item == "" and item in ACTIVE_ITEMS):
+                inventory.append(item)
+                if(item not in fingerprint["itemMatrix"]):
+                    fingerprint["itemMatrix"][item] = [0,0,0,0,0,0,0,0]
+                fingerprint["itemMatrix"][item][slot] += 1
+                fingerprint["itemMatrix"][item][7] += 1 #this is the total count of the item
+    print("Done with " + name + " matches.")
+        
+    fingerprint = handleInventory(fingerprint)
+    
+    return fingerprint
+
+def itemCheck(mainMatrix,smurfMatrix):
+    #variables that need to be tuned
+    sampleSizeLimit = 10
+    alwaysSizeLimit = 15
+    alwaysLimit = .9    #must be above highLimit
+    highLimit = .6  #minimum of .5
+    lowLimit = .15  #must be below highLimit
+    
+    alwaysSame = []
+    alwaysDiff = []
+    normalSame = []
+    normalDiff = []
+    
+    #different classifications of active item uses
+    
+    for item in mainMatrix: #if the item is in smurfMatrix but isn't in mainMatrix, it's irrelevant
+        if item in smurfMatrix:
+            mainSlots = mainMatrix[item]
+            smurfSlots = smurfMatrix[item]
+            mainGames = mainSlots[7]
+            smurfGames = smurfSlots[7]
+            if mainGames >= sampleSizeLimit and smurfGames >= sampleSizeLimit:
+                for slot in range(0,6):
+                    
+                    #check "always" items, which are items that are almost always in the same slot every game
+                    if mainGames >= alwaysSizeLimit or smurfGames >= alwaysSizeLimit:
+                        if((mainSlots[slot] >= alwaysLimit and smurfSlots[slot] < alwaysLimit) or 
+                           (mainSlots[slot] < alwaysLimit and smurfSlots[slot] >= alwaysLimit)):
+                            if(item not in alwaysDiff):
+                                alwaysDiff.append(item)
+                        elif(mainSlots[slot] >= alwaysLimit and smurfSlots[slot] >= alwaysLimit):
+                            if(item not in alwaysSame):
+                                alwaysSame.append(item)
+                                
+                #check "normal" items, which are items that are usually in the same slot every game, with a degree of variation
+                for slot in range(0,6):
+                    if((mainSlots[slot] >= highLimit and smurfSlots[slot] < highLimit) or 
+                       (mainSlots[slot] < highLimit and smurfSlots[slot] >= highLimit)):  
+                        if(item not in normalDiff):
+                            normalDiff.append(item)
+                    else:
+                        if(item not in normalSame):
+                            normalSame.append(item)
+    
+    items = {"alwaysSame":alwaysSame,
+             "alwaysDiff":alwaysDiff,
+             "normalSame":normalSame,
+             "normalDiff":normalDiff}
+    return items    
+
+def smurfCheck(name,smurfs,fingerprints):
+    main = fingerprints[name]
+    results = {}
+    
+    for n in smurfs:
+        smurf = fingerprints[n]
+        results[n] = {}
+        results[n]["numMatches"] = smurf["numMatches"]
+        
+        flashSame = False
+        #check that flashes are on the same key
+        if((main["flash"][0] > main["flash"][1]) and (smurf["flash"][0] > smurf["flash"][1])):
+            flashSame = True
+        elif((main["flash"][0] < main["flash"][1]) and (smurf["flash"][0] < smurf["flash"][1])):
+            flashSame = True
+        results[n]["flash"] = flashSame
+        
+        #check the items
+        results[n]["items"] = itemCheck(main["itemMatrix"],smurf["itemMatrix"])
+    
+    return [results,fingerprints]
+    
+def checkAccounts(name,smurfs):
+    fingerprints = {}
+    
+    fingerprints[name] = getFingerprint(name)
+    for smurf in smurfs:
+        fingerprints[smurf] = getFingerprint(smurf)
+    
+    return smurfCheck(name,smurfs,fingerprints)

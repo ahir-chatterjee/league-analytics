@@ -479,8 +479,6 @@ def fetchAllItems():
         itemDict[data["name"]] = data
     return itemDict
 
-items = fetchAllItems()
-
 def fetchItem(cmd):
     cursor.execute(cmd)
     result = cursor.fetchall()
@@ -536,6 +534,22 @@ def fetchMatch(gameId):
         return {}
     else:
         return json.loads(result[0][0])
+    
+def fetchAccountsBySummId(summIds):
+    summIds.sort()
+    cmd = "SELECT data FROM accounts WHERE" #ORDER BY guarantees that they will be sorted in summIds order
+    for summId in summIds:
+        cmd += " id = \"" + summId + "\" OR"
+    cmd = cmd[:len(cmd)-2]  #get rid of the last "OR"
+    cmd += "ORDER BY id;"
+    cursor.execute(cmd)
+    results = cursor.fetchall()
+    accounts = []
+    for r in results:
+        account = json.loads(r[0])
+        summIds.remove(account["id"])
+        accounts.append(account)
+    return (accounts,summIds)
 
 def fetchAccount(cmd):
     cursor.execute(cmd)
@@ -567,7 +581,7 @@ def fetchAccountByName(name):
 def fetchMatchesByAccount(account):
     formatStr = """SELECT data FROM matches WHERE p1 = "{sId}" OR p2 = "{sId}" OR 
     p3 = "{sId}" OR p4 = "{sId}" OR p5 = "{sId}" OR p6 = "{sId}" OR 
-    p7 = "{sId}" OR p8 = "{sId}" OR p9 = "{sId}" OR p10 = "{sId}"; 
+    p7 = "{sId}" OR p8 = "{sId}" OR p9 = "{sId}" OR p10 = "{sId}" ORDER BY gameCreation; 
     """
     cmd = formatStr.format(sId=account["id"])
     cursor.execute(cmd)
@@ -646,3 +660,5 @@ def updateAccounts():
             #print("Found an account to update! From " + accName + " to " + name)
             updateAccountName(name,d["puuid"])
     return count
+
+#accs = fetchAccountsBySummId(["","X7f8J3RGuTQQDlgPKY2mZJ5ZRyDBxaE2r9UHA_P5AZhYhdg","12pOl3914K3ToSf3RFSYJJ_0xVI0S6PzG8N3oamo5kQlAKY","YuCptpWXu-4GWpT_msxWcZcKZZL6O0eZX3TusAyD_7Is51Y"])
