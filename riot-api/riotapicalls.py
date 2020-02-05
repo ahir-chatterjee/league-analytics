@@ -14,12 +14,28 @@ def getApiKey():
     global API_KEY
     if(not API_KEY):    #if the API_KEY is not loaded
         fileName = "apikey.txt"
-        if(os.path.exists("apikey.txt")):
+        if(os.path.exists(fileName)):
             openFile = open(fileName,'r')
             API_KEY = openFile.read()
+            openFile.close()
         else:
             print("apikey.txt does not exist. Make one using your own apikey from https://developer.riotgames.com/")
     return "?api_key=" + API_KEY
+
+def changeApiKey(key):
+    """
+    Changes the API_KEY in both the loaded value and the file apikey.txt
+    """
+    global API_KEY
+    fileName = "apikey.txt"
+    if(os.path.exists("apikey.txt")):
+        openFile = open(fileName,'w')
+        openFile.write(key)
+        openFile.close()
+        API_KEY = key
+        print("apikey.txt successfully updated.")
+    else:
+        print("apikey.txt does not exist. Make one using your own apikey from https://developer.riotgames.com/")
 
 def makeApiCall(url):
     """
