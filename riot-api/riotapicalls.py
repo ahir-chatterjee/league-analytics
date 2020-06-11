@@ -44,7 +44,7 @@ def makeApiCall(url):
     try:    #sometimes we get a handshake error. if this happens, try it again
         request = requests.get(url)
     except:
-        print("Exception of request of url, trying again in 5 seconds. Failed url: " + (url))
+        #print("Exception of request of url, trying again in 5 seconds. Failed url: " + (url))
         time.sleep(5)
         return makeApiCall(url)
     d = json.loads(request.text)
@@ -73,7 +73,8 @@ def makeApiCall(url):
             elif(statusCode == FORBIDDEN):
                 print("API_KEY is incorrect. Please update your apikey.txt from https://developer.riotgames.com")
             elif(statusCode == NOT_FOUND):
-                print("No data was found using the following url: " + url)
+                #print("No data was found using the following url: " + url)
+                return {"status":FORBIDDEN}
             elif(statusCode == UNAVAILABLE):
                 #print("Service unavailable, trying again in 5 seconds.")
                 time.sleep(5)
@@ -155,21 +156,40 @@ def updateConstants():
 """
 Summoner endpoints. Get an account's information by different methods.
 """
+
+def forceAccountUpdate(name):
+    d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/" + name + getApiKey())
+    acc = dbcalls.fetchAccountByName(name)
+    if("puuid" in d):
+        previousPuuid = acc["puuid"]
+        dbcalls.updateAccountName(d["name"],d["puuid"])
+        d = getAccountByPuuid(previousPuuid)
+    else:
+        d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/" + acc["puuid"] + getApiKey())
+        if(acc["name"] != d["name"]):
+            dbcalls.updateAccountName(d["name"],d["puuid"])
+    return d
+            
     
 def getAccountByName(name):
     d = dbcalls.fetchAccountByName(name)
     if(not d):  #if d is empty, make the apiCall
         d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/" + name + getApiKey())
         if(not "puuid" in d):
-            return d
-        acc = dbcalls.fetchAccountByPuuid(d["puuid"])   #check for a potential name change
-        if(acc):  #if acc is not empty, that means the user name changed
-            if(not acc["name"] == d["name"]):
+            acc = dbcalls.fetchAccountByName(name)
+            if(acc):
+                d = getAccountByPuuid(acc["puuid"])
                 print("name change found! From " + (str)(acc["name"]) + " to " + (str)(d["name"]))
                 dbcalls.updateAccountName(name,d["puuid"])
-            d = dbcalls.fetchAccountByPuuid(d["puuid"])
         else:
-            dbcalls.addAccountToDB(d)   #store all the information for this account so we can store its history
+            acc = dbcalls.fetchAccountByPuuid(d["puuid"])   #check for a potential name change
+            if(acc):  #if acc is not empty, that means the user name changed
+                if(not acc["name"] == d["name"]):
+                    print("name change found! From " + (str)(acc["name"]) + " to " + (str)(d["name"]))
+                    dbcalls.updateAccountName(name,d["puuid"])
+                d = dbcalls.fetchAccountByPuuid(d["puuid"])
+            else:
+                dbcalls.addAccountToDB(d)   #store all the information for this account so we can store its history
     return d
 
 def getAccountByAccId(accId):
@@ -182,6 +202,7 @@ def getAccountByAccId(accId):
 def getAccountByPuuid(puuid):
     d = dbcalls.fetchAccountByPuuid(puuid)
     if(not d):  #if d is empty, make the apiCall
+        puuid = "7yf54vYl811FxFsoKKV7FIv_09Vvzpf2P8ewOMbx3XX0Em1wOS530xH6chxwgdIcmzB3BvTvH4FfoA"
         d = makeApiCall("https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/" + puuid + getApiKey())
         dbcalls.addAccountToDB(d)   #store all the information for this account so we can store it's history
     return d
@@ -261,15 +282,30 @@ def getAllRankedMatchesByAccount(account):
     matchList = getMatchList(accId,queries)
     totalGames = matchList["totalGames"]
     
-    matches = []
+    matches = dbcalls.fetchMatchesByAccount(account)
+    gameIds = []
+    for match in matches:
+        gameIds.append(match["gameId"])
+        
     count = 0
+    forbiddenCount = 0
+    seasonId = getMostRecentSeasonId()
     while(count < totalGames):
-        matches.extend(getAllMatches(matchList))
+        for match in matchList["matches"]:
+            if((int)(match["season"]) == (int)(seasonId)):
+                gameId = match["gameId"]
+                if gameId not in gameIds:
+                    m = getMatch(match["gameId"])
+                    if "status" in m:
+                        if forbiddenCount > 10:
+                            return matches
+                        else:
+                            forbiddenCount += 1
+                    matches.append(m)
         count += 100
         queries = "&queue=420&beginIndex=" + (str)(count)
         matchList = getMatchList(accId,queries)
         totalGames = matchList["totalGames"]
-        
     return matches
 
 def getAccountsByNames(names):
@@ -297,3 +333,5 @@ def downloadFromLadder():
                 print()
                 #print()
                 league = getLeagueExp(queue,tier,division,page)
+                
+#acc = forceAccountUpdate("IG The shy NA")
