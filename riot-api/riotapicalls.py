@@ -244,7 +244,11 @@ League endpoints.
 def getLeagueExp(queue,tier,division,page):
     url = "https://na1.api.riotgames.com/lol/league-exp/v4/entries/"
     url += queue + "/" + tier + "/" + division + getApiKey() + "&page=" + (str)(page)
-    print(url)
+    #print(url)
+    return makeApiCall(url)
+
+def getLeagueBySummonerId(summId):
+    url = "https://na1.api.riotgames.com/lol/league/v4/entries/by-summoner/" + summId + getApiKey()
     return makeApiCall(url)
 
 """
@@ -333,5 +337,3 @@ def downloadFromLadder():
                 print()
                 #print()
                 league = getLeagueExp(queue,tier,division,page)
-                
-#acc = forceAccountUpdate("IG The shy NA")

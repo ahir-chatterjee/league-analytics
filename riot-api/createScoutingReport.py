@@ -131,7 +131,7 @@ def sortChampPool(champPool,recent,aggregate):
             if t[1] < fringeThreshold:
                 champPool.append("")
                 fringe = True
-        champPool.append(t[0])
+        champPool.append([t[0],t[1]])
     return champPool
 
 def createChampPools(players):
@@ -160,8 +160,8 @@ def createReport(accounts):
         if(account):    #if the account is a valid account
             name = account["name"]
             print("Retrieving all ranked matches from \"" + name + "\"...")
-            matches = riotapicalls.getAllRankedMatchesByAccount(account)
-            #matches = dbcalls.fetchMatchesByAccount(account)
+            #matches = riotapicalls.getAllRankedMatchesByAccount(account)
+            matches = dbcalls.fetchMatchesByAccount(account)
             print((str)(len(matches)) + " ranked matches retrieved from \"" + name + "\".")
             #for match in matches:
                 #timelines.append(riotapicalls.getMatchTimeline(match["gameId"]))
@@ -178,7 +178,7 @@ def createScoutingReport(teamName,opgg):
     print("Creating scouting report for " + teamName + "...")
     names = opggcalls.getNamesFromOpgg(opgg)
     accounts = riotapicalls.getAccountsByNames(names)
-    #dbcalls.addTeamToDB(teamName,accounts)
+    dbcalls.addTeamToDB(teamName,accounts)
     report = createReport(accounts)
     print("Scouting report created for " + teamName)
     return report

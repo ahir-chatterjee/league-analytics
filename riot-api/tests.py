@@ -9,8 +9,7 @@ import riotapicalls
 import opggcalls
 import dbcalls
 import time
-import createScoutingReport
-import findRelatedAccounts
+import analysis
 #from roleml import roleml
 
 def getAccountTests():
@@ -62,34 +61,42 @@ def getNamesFromOpggTest2():
 
 def createScoutingReportTest():
     start = time.time()
-    #report = createScoutingReport.createScoutingReport("UT Austin","https://na.op.gg/multi/query=noodlz%2Cra%C3%AFlgun%2Ckeepitmello%2Cpoopsers%2Clpoklpok%2Carfarfawoo%C3%B2w%C3%B3o%2Ccelsiusheat")
+    report = createScoutingReport.createScoutingReport("UT Austin","https://na.op.gg/multi/query=noodlz%2Cra%C3%AFlgun%2Ckeepitmello%2Cpoopsers%2Clpoklpok%2Carfarfawoo%C3%B2w%C3%B3o%2Ccelsiusheat")
     #report = createScoutingReport.createScoutingReport("Waterloo","https://na.op.gg/multi/query=barbecueribs%2Cino1%2Ceasy10%2Cscherb%2Clyo")
     #report2 = createScoutingReport.createScoutingReport("Maryville University","https://na.op.gg/multi/query=niles%2CMUIconic%2CMUWolfe%2CValue%2C1Shady%2Csleeptimego%2Ckindjungle%2Chybridzz%2Cevanrl%2CCIyde")
-    gcu = opggcalls.stichIntoMulti(["https://na.op.gg/summoner/userName=siglere","https://na.op.gg/summoner/userName=Novawolf","https://na.op.gg/summoner/userName=PlumberMario","https://na.op.gg/summoner/userName=4bidden","https://na.op.gg/summoner/userName=GCU+Quicksands","https://na.op.gg/summoner/userName=Swagnar"])
-    report3 = createScoutingReport.createScoutingReport("Grand Canyon University",gcu)
+    #gcu = opggcalls.stichIntoMulti(["https://na.op.gg/summoner/userName=siglere","https://na.op.gg/summoner/userName=Novawolf","https://na.op.gg/summoner/userName=PlumberMario","https://na.op.gg/summoner/userName=4bidden","https://na.op.gg/summoner/userName=GCU+Quicksands","https://na.op.gg/summoner/userName=Swagnar"])
+    #report3 = createScoutingReport.createScoutingReport("Grand Canyon University",gcu)
     #hiddens = createScoutingReport.createScoutingReport("h","https://na.op.gg/multi/query=gavita%2Cbotcait%2Cdaddyowo%2Cggevosnore%2Cadebolaoluwa%2Cthejawsofdeath%2Caut1stanuser")
+    """harrisburg = opggcalls.stichIntoMulti(["https://na.op.gg/summoner/userName=lxwrence","https://na.op.gg/summoner/userName=ShorterACE","https://na.op.gg/summoner/userName=HighKeySavage",
+                                           "https://na.op.gg/summoner/userName=R%C3%A1n",
+                                           "https://na.op.gg/summoner/userName=Teesum","https://na.op.gg/summoner/userName=FrostForest",
+                                           "https://na.op.gg/summoner/userName=LikeAMaws","https://na.op.gg/summoner/userName=P1atypus",
+                                           "https://na.op.gg/summoner/userName=tomo9","https://na.op.gg/summoner/userName=HighKeySavage",
+                                           "https://na.op.gg/summoner/userName=HopefuI","https://na.op.gg/summoner/userName=POOME%CB%89"])
+    """
+    #report = createScoutingReport.createScoutingReport("Harrisburg University",harrisburg)
     end = time.time()
     elapsedTime = (end-start)/60
-    return [elapsedTime,report3]#,report2,report3]
+    return [elapsedTime,report]#,report2,report3]
 
 def findRelatedAccountsTest():
-    #names = ["Noodlz","keep it mello","Poopsers","Celsius HEAT","arf ARF AwOoÒwÓo","lpoklpok","raïlgun"]
+    names = ["Noodlz","keep it mello","Poopsers","Celsius HEAT","arf ARF AwOoÒwÓo","lpoklpok","raïlgun"]
     #names = ["duong pro","kim down","the cookie","descraton","youngbin"]
     #names = ["spøøky","mistystumpey","andybendy","rovex","nintendudex","nme toysoldier"]
     #names = ["i am nightshade","móónlight","súnlight","really big meme","argentumsky","dylaran"]
-    names = ["barbecueribs","ino1","easy 10","scherb","lyo"]
+    #names = ["barbecueribs","ino1","easy 10","scherb","lyo"]
     #names = ["the jons","vinnyhuan","golden kiwi","smelp","sharpe","lunarly","0aks"]    #having trouble with Nova Bot (Texas)
     #names = ['lofirelax', 'herking', 'uschovz', 'usctechsupport', 'poı', 'usckamdono', 'usc5050352', 'joejacko', 'gtinybear', 'hey i miss u']#opggcalls.getNamesFromOpgg("https://na.op.gg/multi/query=lofirelax%2Cherking%2Cuschovz%2Cusctechsupport%2Cpo%C4%B1%2Cusckamdono%2Cusc5050352")
     #names = opggcalls.getNamesFromOpgg("https://na.op.gg/multi/query=crecious%2Cimbiglou%2Ctheholyslurp%2Cnatey67%2Ckshuna%2Cmrblackpanda")
     #names = opggcalls.getNamesFromOpgg("https://na.op.gg/multi/query=niles%2CMUIconic%2CMUWolfe%2CValue%2C1Shady%2Csleeptimego%2Ckindjungle%2Chybridzz%2Cevanrl%2CCIyde")
-    names = opggcalls.getNamesFromOpgg("https://na.op.gg/multi/query=gavita%2Cbotcait%2Cdaddyowo%2Cggevosnore%2Cadebolaoluwa%2Cthejawsofdeath%2Caut1stanuser")
+    #names = opggcalls.getNamesFromOpgg("https://na.op.gg/multi/query=gavita%2Cbotcait%2Cdaddyowo%2Cggevosnore%2Cadebolaoluwa%2Cthejawsofdeath%2Caut1stanuser")
     start = time.time()
     accounts = []
     for name in names:
         account = riotapicalls.getAccountByName(name)
         accounts.append(account)
     #print(accounts)
-    susAccounts = findRelatedAccounts.findRelatedAccounts(accounts)
+    susAccounts = analysis.findRelatedAccounts(accounts)
     end = time.time()
     elapsedTime = (end-start)/60
     return [elapsedTime,susAccounts,accounts,names]
@@ -129,9 +136,13 @@ def downloadAccountsByOpgg(opgg):
         riotapicalls.getAllRankedMatchesByAccount(account)
 
 def main():
+    multi = "https://na.op.gg/multi/query=poopsers%2Clpoklpok%2Cnoodlz%2Cra%C3%AFlgun%2Carfarfawoo%C3%B2w%C3%B3o%2Ckeepitmello%2C%2Ccelsiusheat"
+    #multi = "https://na.op.gg/multi/query=bloodmoon%2Cscrewface%2Ckiishan%2Cbayougrande%2Cspinforpenta%2Cavux%2Ctwtvteamluketv"
+    #multi = "https://na.op.gg/multi/query=iamnightshade%2Cm%C3%B3%C3%B3nlight%2Cs%C3%BAnlight%2Creallybigmeme%2Cargentumsky%2Cdylaran"
+    return analysis.findRelatedAccounts(multi)
     #return findRelatedAccountsTest()
-    print(opggcalls.stichIntoMulti(["https://na.op.gg/summoner/userName=siglere","https://na.op.gg/summoner/userName=Novawolf","https://na.op.gg/summoner/userName=PlumberMario","https://na.op.gg/summoner/userName=4bidden","https://na.op.gg/summoner/userName=GCU+Quicksands","https://na.op.gg/summoner/userName=Swagnar"]))
-    return createScoutingReportTest()
+    #print(opggcalls.stichIntoMulti(["https://na.op.gg/summoner/userName=siglere","https://na.op.gg/summoner/userName=Novawolf","https://na.op.gg/summoner/userName=PlumberMario","https://na.op.gg/summoner/userName=4bidden","https://na.op.gg/summoner/userName=GCU+Quicksands","https://na.op.gg/summoner/userName=Swagnar"]))
+    #return createScoutingReportTest()
     #downloadAccountsByOpgg("https://na.op.gg/multi/query=ac%CB%86130%2Chornyandgiad%2Clungair%2Cdustinchang%2Csatanoncoke%2Cjudochess%2Cloopsers%2Cmellomental%2Clickitloveit%2Cboostedmememonke%2Cmelllo")
     
-accs = main()
+texasRelatedAccounts2    = main()
