@@ -31,7 +31,7 @@ def createMultiFromNames(names):
     multi = multi[:len(multi)-3]
     return multi
 
-def getNamesFromOpgg(opgg):
+def getNamesFromMulti(opgg):
     split = opgg.split("query=")    #we only care about the part after query=, which is in split[1]
     if(len(split) < 2):    #passed an invalid op.gg link
         return []
