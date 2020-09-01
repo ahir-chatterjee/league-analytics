@@ -437,9 +437,8 @@ def updateRunes(runes):
     VALUES ({iD},"{k}","{n}",'{d}');
     """
     for tree in runes:
-        cmd = formatStr.format(iD=tree["id"],k=tree["key"],n=tree["name"])
-        data = json.dumps(tree)
-        cursor.execute(cmd,(data,))
+        cmd = formatStr.format(iD=tree["id"],k=tree["key"],n=tree["name"],d=json.dumps(tree))
+        cursor.execute(cmd)
         for slot in tree["slots"]:
             for rune in slot["runes"]:
                 cmd = formatStr.format(iD=rune["id"],k=rune["key"],n=rune["name"],d=json.dumps(rune))
