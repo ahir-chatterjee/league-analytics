@@ -269,7 +269,7 @@ def checkForUpdates(versions):
 Methods for adding a record to the database
 """  
 
-def addTeamToDB(name,accounts):
+def addTeamToDB(name,accounts): #DOES NOT WORK FOR NOW, ABORT
     if(not name or not accounts):   #passed useless data
         return -1
     now = time.localtime()
@@ -374,20 +374,20 @@ def updateAccountName(name,puuid):
     assert account, "account must be in the database for this method to be called"
     account["name"] = name
     data = json.dumps(account)
-    cmd = "UPDATE accounts SET name = \"" + name + "\", data = ? WHERE puuid = \"" + puuid + "\""
-    #print(cmd)
-    cursor.execute(cmd,(data,))
+    formatStr = "UPDATE accounts SET `name` = \"" + name + "\", `data` = '{d}' WHERE `puuid` = \"" + puuid + "\""
+    cmd = formatStr.format(d=json.dumps(account))
+    cursor.execute(cmd)
     DB.commit()
     
 def updateChamps(champs,version):
     cursor.execute("DELETE FROM champions;")
     formatStr = """
-    INSERT INTO champions (version, id, name, ky, partype, 
-    armor, armorperlevel, attackdamage, attackdamageperlevel, attackrange, attackspeed, 
-    attackspeedperlevel, crit, critperlevel, hp, hpperlevel, hpregen, hpregenperlevel, 
-    movespeed, mp, mpperlevel, mpregen, mpregenperlevel, spellblock, spellblockperlevel, 
-    title, data) VALUES ("{v}","{iD}","{n}",{k},"{pT}",{arm},{armPL},{ad},{adPL},{ar},{aS},
-    {aspl},{c},{cPL},{hp},{hpPL},{hpR},{hpRPL},{ms},{mp},{mpPL},{mpR},{mpRPL},{mr},{mrPL},"{t}",?);
+    INSERT INTO champions (`version`, `id`, `name`, `ky`, `partype`, 
+    `armor`, `armorperlevel`, `attackdamage`, `attackdamageperlevel`, `attackrange`, `attackspeed`, 
+    `attackspeedperlevel`, `crit`, `critperlevel`, `hp`, `hpperlevel`, `hpregen`, `hpregenperlevel`, 
+    `movespeed`, `mp`, `mpperlevel`, `mpregen`, `mpregenperlevel`, `spellblock`, `spellblockperlevel`, 
+    `title`, `data`) VALUES ("{v}","{iD}","{n}",{k},"{pT}",{arm},{armPL},{ad},{adPL},{ar},{aS},
+    {aspl},{c},{cPL},{hp},{hpPL},{hpR},{hpRPL},{ms},{mp},{mpPL},{mpR},{mpRPL},{mr},{mrPL},"{t}",'{d}');
     """
     for c in champs:
         s = c["stats"]
@@ -397,16 +397,15 @@ def updateChamps(champs,version):
                                c=s["crit"],cPL=s["critperlevel"],hp=s["hp"],hpPL=s["hpperlevel"],
                                hpR=s["hpregen"],hpRPL=s["hpregenperlevel"],ms=s["movespeed"],mp=s["mp"],
                                mpPL=s["mpperlevel"],mpR=s["mpregen"],mpRPL=s["mpregenperlevel"],
-                               mr=s["spellblock"],mrPL=s["spellblockperlevel"],t=c["title"])
-        data = json.dumps(c)
-        cursor.execute(cmd,(data,))
+                               mr=s["spellblock"],mrPL=s["spellblockperlevel"],t=c["title"],d=json.dumps(c))
+        cursor.execute(cmd)
     DB.commit()
     
 def updateItems(items,version):
     cursor.execute("DELETE FROM items;")
     formatStr = """
-    INSERT INTO items (version, colloq, baseCost, purchasable, sellCost, totalCost, onSR, 
-    name, number, data) VALUES ("{v}","{c}",{bC},{p},{sC},{tC},{SR},"{name}","{num}",?);
+    INSERT INTO items (`version`, `colloq`, `baseCost`, `purchasable`, `sellCost`, `totalCost`, `onSR`, 
+    `name`, `number`, `data`) VALUES ("{v}","{c}",{bC},{p},{sC},{tC},{SR},"{name}","{num}",'{d}');
     """
     for n in items:
         i = items[n]
@@ -414,30 +413,28 @@ def updateItems(items,version):
         purchasable = 1 if i["gold"]["purchasable"] else 0
         onSR = 1 if i["maps"]["11"] else 0
         cmd = formatStr.format(v=version,c=i["colloq"],bC=gold["base"],p=purchasable,
-                               sC=gold["sell"],tC=gold["total"],SR=onSR,name=i["name"],num=n)
-        data = json.dumps(items[n])
-        cursor.execute(cmd,(data,))
+                               sC=gold["sell"],tC=gold["total"],SR=onSR,name=i["name"],num=n,d=json.dumps(items[n]))
+        cursor.execute(cmd)
     DB.commit()
 
 def updateSpells(spells,version):   #summoner spells
     cursor.execute("DELETE FROM sSpells;")
     formatStr = """
-    INSERT INTO sSpells (version, name, cd, ky, onSR, data) 
-    VALUES ("{v}","{n}",{cd},{k},{onSR},?);
+    INSERT INTO sSpells (`version`, `name`, `cd`, `ky`, `onSR`, `data`) 
+    VALUES ("{v}","{n}",{cd},{k},{onSR},'{d}');
     """
     for summ in spells:
         s = spells[summ]
         SR = 1 if "CLASSIC" in s["modes"] else 0
-        cmd = formatStr.format(v=version,n=s["name"],cd=s["cooldownBurn"],k=s["key"],onSR=SR)
-        data = json.dumps(spells[summ])
-        cursor.execute(cmd,(data,))
+        cmd = formatStr.format(v=version,n=s["name"],cd=s["cooldownBurn"],k=s["key"],onSR=SR,d=json.dumps(spells[summ]))
+        cursor.execute(cmd)
     DB.commit()
     
 def updateRunes(runes):
     cursor.execute("DELETE FROM runes;")
     formatStr = """
-    INSERT INTO runes (id, ky, name, data) 
-    VALUES ({iD},"{k}","{n}",?);
+    INSERT INTO runes (`id`, `ky`, `name`, `data`) 
+    VALUES ({iD},"{k}","{n}",'{d}');
     """
     for tree in runes:
         cmd = formatStr.format(iD=tree["id"],k=tree["key"],n=tree["name"])
@@ -445,9 +442,8 @@ def updateRunes(runes):
         cursor.execute(cmd,(data,))
         for slot in tree["slots"]:
             for rune in slot["runes"]:
-                cmd = formatStr.format(iD=rune["id"],k=rune["key"],n=rune["name"])
-                data = json.dumps(rune)
-                cursor.execute(cmd,(data,))
+                cmd = formatStr.format(iD=rune["id"],k=rune["key"],n=rune["name"],d=json.dumps(rune))
+                cursor.execute(cmd)
     DB.commit()
 
 """
