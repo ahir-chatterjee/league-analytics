@@ -9,10 +9,14 @@ import dbcalls
 import riotapicalls
 import opggcalls
 import time
-#from roleml import roleml
+from roleml import roleml
 
 """
-Given a match and a summonerId, will return the participantId of the player in the match
+Parameters: 
+    match - a match object from the Riot API
+    summId - a unique summonerId
+Returns:
+    The summId's participantId within the given match
 """
 def findParticipantId(match,summId):
     for p in match["participantIdentities"]:
@@ -20,6 +24,15 @@ def findParticipantId(match,summId):
             return p["participantId"]
     return -1
 
+"""
+Parameters:
+    match - a match object from the Riot API
+    timeline - a timeline object from the Riot API
+Returns:
+    A dictionary of players and their roles (top,mid,etc.) in the game. 
+    The keys of the dictionary are the player's summonerId.
+    See roleml library for more details.
+"""
 def getMatchRoles(match,timeline):
     prediction = roleml.predict(match,timeline)
     roles = {}
@@ -28,25 +41,62 @@ def getMatchRoles(match,timeline):
     return roles
 
 """
-createScoutingReport() is a method that takes in a teamName and multi.gg link and returns a report.
-The report contains the champions that they play on, in order of using recency of play on the accounts as
-increasing the importance of it, as well as all games on a champion during the season.
+Parameters:
+    multi - a multi op.gg link in the format "https://na.op.gg/multi/query="
+Returns:
+    Nothing.
+    Downloads all of the ranked games for each of the accounts in the multi.
 """
+def downloadRankedGamesFromMulti(multi):
+    accounts = getAccountsFromMulti(multi)
+    for account in accounts:
+        print("Downloading from " + account["name"] + "...")
+        matches = riotapicalls.getAllRankedMatchesByAccount(account)
+        print((str)(len(matches)) + " matches downloaded for " + account["name"])
+        
+"""
+Parameters:
+    multi - a multi op.gg link in the format "https://na.op.gg/multi/query="
+Returns:
+    A list of the Riot API accounts corresponding to the names listed in the multi.
+"""
+def getAccountsFromMulti(multi):
+    names = opggcalls.getNamesFromMulti(multi)
+    accounts = riotapicalls.getAccountsByNames(names)
+    return accounts
 
+"""
+Overview:
+    createScoutingReport is a method that takes in a teamName and multi.gg link and returns a report.
+    The report contains the champions that they play in ranked.
+    These champions are sorted, using both recency of games as well as number of games on a champion during the season.
+Parameters:
+    teamName - name of the team, just a simple string, can be anything
+    opgg - a multi op.gg link in the format "https://na.op.gg/multi/query="
+Returns:
+    report - a scouting report with weighted champ pools of each player, as well as item and rune information
+The following methods are all part of createScoutingReport:
+    createReport, getReportMatchData, addReportInfo, sortChampPool, createChampPools
+"""
 def createScoutingReport(teamName,opgg):
     #should add lane information, using that roleml library. would require timelines to also be downloaded
     print("Creating scouting report for " + teamName + "...")
-    names = opggcalls.getNamesFromOpgg(opgg)
+    names = opggcalls.getNamesFromMulti(opgg)
     accounts = riotapicalls.getAccountsByNames(names)
     dbcalls.addTeamToDB(teamName,accounts)
     report = createReport(accounts)
     print("Scouting report created for " + teamName)
     return report
-
+"""
+Parameters:
+    accounts - a list of Riot API accounts of the given team
+Returns:
+    report - a scouting report with weighted champ pools of each player, as well as item and rune information
+"""
 def createReport(accounts):
     report = {"players":{}}
     for account in accounts:
-        if(account):    #if the account is a valid account
+        if(account):    #if the account is a valid account (accounts for summoner name changes)
             name = account["name"]
             print("Retrieving all ranked matches from \"" + name + "\"...")
             matches = riotapicalls.getAllRankedMatchesByAccount(account)    #downloads all ranked games, takes longer
@@ -57,11 +107,18 @@ def createReport(accounts):
             data = getReportMatchData(matches,account)
             report["players"][name] = data
         else:
-            print("Invalid account given.")    
+            print("Invalid account given.")    #summoner name must have changed, check op.gg
     report["players"] = createChampPools(report["players"])
         
     return report
 
+"""
+Parameters:
+    matches - all of the ranked matches of a given player
+    accounts - the account of a given player (same playe as the matches)
+Returns:
+    analysis - champ pool, item, and rune information of the player
+"""
 def getReportMatchData(matches,account):
     msPerWeek = 604800*1000 #milliseconds per week
     recentInterval = msPerWeek*2    #3 weeks
@@ -79,6 +136,15 @@ def getReportMatchData(matches,account):
     analysis = {"recent":recent,"aggregate":aggregate}
     return analysis
 
+"""
+Parameters: 
+    d - a passed in dictionary. Either "aggregate" or "recent" that are used to return analysis on a player.
+    pData - data from a match of a given player (includes champ played, runes, items, etc.)
+Returns:
+    Nothing.
+    Edits d such that it contains all the information it needs (champ played, runes, items, etc.).
+    Each method call to this will add one game's worth of data to d.
+"""
 def addReportInfo(d,pData): 
     #could be a more efficient method if updated to take in both recent and aggregate at the same time
     champ = dbcalls.translateChamp(pData["championId"])
@@ -121,7 +187,7 @@ def addReportInfo(d,pData):
                "perk1":"","perk2":"","perk3":"","perk4":"","perk5":""}
     
     runeSet["primaryTree"] = dbcalls.translateRune(stats["perkPrimaryStyle"])
-    runeSet["secondaryTree"] = dbcalls.translateRune(stats["perkSubStyle"])
+    runeSet["secondaryTree"] = dbcalls.translateRune(stats["perkSubStyle"]) if "perkSubStyle" in stats else ""
     for num in range(0,6):
         perkNum = "perk"+(str)(num)
         runeNum = stats[perkNum]
@@ -138,6 +204,14 @@ def addReportInfo(d,pData):
                 runes[rune] = 1
     d[champ]["runeSets"].append(runeSet)
     
+"""
+Parameters:
+    champPool - a champPool created by createChampPools
+    recent - the champions rececntly played by a given player
+    aggregate - the champions played for the entire season by a given player
+Returns:
+    champPool but sorted using the weighted algorithm contained within the method
+"""
 def sortChampPool(champPool,recent,aggregate):
     #Takes in a given champPool, a players recent plays, and a players aggregate plays, and sorts it
     tuples = []
@@ -169,6 +243,14 @@ def sortChampPool(champPool,recent,aggregate):
         champPool.append(t[0])
     return champPool
 
+"""
+Parameters:
+    players - a dictionary of all of the players on a team
+Returns:
+    players, but updated so that they all have sorted champPools. 
+    A champ is considered within a player's champ pool if they have either a minimum number of games on them
+    OR if they played the champion recently.
+"""
 def createChampPools(players):
     minGameLimit = 8   #min games to have a champ in your champ pool
     for name in players:
@@ -188,77 +270,157 @@ def createChampPools(players):
     return players
 
 """
-findRelatedAccounts() is a method that determines suspicious accounts that might be a player's smurf. 
-It takes in a list of names and will look through all of their games 
+Overview:
+    findRelatedAccounts is a method that determines suspicious accounts that might be a player's smurf. 
+    In short, it uses common duo partners to determine if an account is connected to another one.
+Parameters:
+    multi - a multi op.gg link in the format "https://na.op.gg/multi/query="
+Returns:
+    relatedAccounts - a dictionary of all of the passed in accounts and the accounts that may be related to them
+The following methods are all part of createScoutingReport:
+    determineSusAccounts, syncDuos, findDuos
 """
-
-def findRelatedAccounts(accounts):
-    #need to add degrees of relativity, role played, as well as "duo streaks" (it's how I found USC jungler's smurf via opgg)
-    susAccs = {"similarAccounts":[]}
-    similarAccounts = {}
+def findRelatedAccounts(multi):
+    #step 1
+    accounts = getAccountsFromMulti(multi)
+    relatedAccounts = {}
+    print("Done with step 1.")
+    #step 2
     for account in accounts:
         name = account["name"]
-        matches = dbcalls.fetchMatchesByAccount(account)    #matches are fetched in order of played (oldest to newest)
-        #matches = riotapicalls.getAllRankedMatchesByAccount(account)
-        playedWith = getPlayedWith(matches,account["id"])
-        prunePlayedWith(playedWith)
-        susAccs[name] = playedWith
-        
-        for n in playedWith:
-            playedWithAcc = playedWith[n]
-            if(n not in similarAccounts):
-                similarAccounts[n] = {}
-            similarAccounts[n][name] = playedWithAcc
-            
-    susAccs["similarAccounts"] = list(sorted(similarAccounts.items(), key=lambda kv: weightFunction(kv), reverse=True))
-    return susAccs
+        print(name)
+        accInfo = {"sus":{},"mostSus":{}}
+        matches = riotapicalls.getAllRankedMatchesByAccount(account)
+        accInfo["duos"] = findDuos(matches,account)
+        relatedAccounts[name] = accInfo
+    print("Almost done with step 2.")
+    relatedAccounts["duos"] = syncDuos(relatedAccounts) #puts all unique duo partners into relatedAccounts["duos"]
+    print("Done with step 2.")
+    #step 3
+    for duo in relatedAccounts["duos"]:
+        if relatedAccounts["duos"][duo]["partners"] > 2 or relatedAccounts["duos"][duo]["games"] > 20:
+            account = riotapicalls.getAccountByName(duo)
+            if "name" not in account:
+                print("error with: " + duo)
+            name = account["name"]
+            print(name)
+            matches = riotapicalls.getAllRankedMatchesByAccount(account)
+            #step 4
+            relatedAccounts["duos"][name]["duos"] = findDuos(matches,account) #need to decode these duos as well
+    print("Almost done with step 4.")
+    relatedAccounts["duos"]["duos"] = syncDuos(relatedAccounts["duos"])
+    print("Done with step 4.")
+    #step 5
+    determineSusAccounts(relatedAccounts) #fills in for each original player the "sus" and "mostSus" dicts
 
-def getPlayedWith(matches,summId):
-    playedWith = {}
-    summIds = {}
-    for match in matches:
-        pId = findParticipantId(match,summId)
-        assert not pId == -1, "didn't find pId for some reason | " + (str)(match["gameId"]) + " | " + (str)(len(playedWith))
-        start = (pId//6)*5   #either 0 or 1 after divison, then 0 or 5
-        assert start == 0 or start == 5, "dun goofed " + (str)(start) + " | " + (str)(pId)
-        for i in range(start,start+5):  #loop through the 5 players on their team
-            if(not i == pId-1): 
-                player = match["participantIdentities"][i]["player"]
-                pSummId = player["summonerId"]
-                if pSummId not in summIds:
-                    summIds[pSummId] = 1
+    return relatedAccounts
+
+"""
+Parameters:
+    relatedAccounts - a dictionary containing account names, 
+                        and for each one has accounts that are two degrees away from them with the number of duo games.
+Returns:
+    Nothing.
+    Modifies the relatedAccounts such that there are "sus" and "mostSus" accounts for each player.
+"""
+def determineSusAccounts(relatedAccounts):
+    for player in relatedAccounts:
+        if not player == "duos":
+            partners = relatedAccounts[player]["duos"]
+            for partner in partners:
+                if "duos" in relatedAccounts["duos"][partner] and partner not in relatedAccounts: #if we have this duo partners games downloaded (essentially)
+                    for duo in relatedAccounts["duos"][partner]["duos"]:
+                        if duo not in relatedAccounts[player]["sus"]:
+                            relatedAccounts[player]["sus"][duo] = [partner]
+                        else:
+                            relatedAccounts[player]["sus"][duo].append(partner)
+                            relatedAccounts[player]["mostSus"][duo] = relatedAccounts[player]["sus"][duo]
+
+"""
+Parameters:
+    relatedAccounts - a dictionary containing accounts names, and for each one has account summonerId's two degrees away
+Returns:
+    duos - a dictionary of all the unique duo partners of this account
+    Also modifies all of the duos to use a summoner name rather than summonerId's, since this needs to be human readable
+"""
+def syncDuos(relatedAccounts):
+    duos = {}
+    for name in relatedAccounts:
+        if "duos" in relatedAccounts[name]:
+            changeDict = {}
+            partners = relatedAccounts[name]["duos"]
+            for summId in partners:
+                account = riotapicalls.getAccountBySummId(summId)
+                dName = account["name"]
+                changeDict[dName] = summId
+                duoStats = partners[summId]
+                if dName not in duos:
+                    duoInfo = {"games":duoStats["games"],"partners":1}
+                    duoInfo[name] = duoStats
+                    duos[dName] = duoInfo
                 else:
-                    summIds[pSummId] += 1
-                    
-    for sId in summIds:
-        acc = riotapicalls.getAccountBySummId(sId)
-        name = acc["name"]
-        if(name in playedWith):
-            playedWith[name] += 1
-        else:
-            playedWith[name] = 1
-        
-    return playedWith
+                    duos[dName]["games"] += duoStats["games"]
+                    duos[dName][name] = duoStats
+                    duos[dName]["partners"] += 1
+                        
+            for name in changeDict:
+                summId = changeDict[name]
+                partners[name] = partners[summId]
+                del partners[summId]
+    return duos
 
-def weightFunction(kv):
-    value = kv[1]
-    weightPerPerson = 30 #high value to ensure more people duo'd with == higher weight
-    weight = (len(value)-1)*weightPerPerson
-    for key in value:
-        weight += value[key]
-    return weight
-
-def prunePlayedWith(playedWith):
-    popList = []
-    minNumGames = 5 #random amount, but min number of games required to be relevant
-    for name in playedWith:
-        if(playedWith[name] < minNumGames):
-            popList.append(name)
-    for name in popList:
-        playedWith.pop(name)
+"""
+Parameters:
+    matches - all of the ranked matches of an account from the Riot API
+    account - a Riot API account of a player (same player as the matches)
+Returns:
+    duos - a dictionary of all of the summonerId's of a duo, containing:
+            number of matches and streaks (sessions with 2 or more games in a row)
+"""
+def findDuos(matches,account):
+    summId = account["id"]
+    duos = {} #once someone is confirmed as a duo, they are marked in here
+    streaks = {} #used for keeping track of duo streaks/sessions
+    minGames = 2
+    
+    for match in matches:
+        if "status" not in match:
+            pId = findParticipantId(match,summId)
+            team = pId//6 #will either be a 0 or a 1
+            startIndex = team*5 #will either be a 0 or 5
+            for i in range(startIndex,startIndex+5): #loops through the 5 players on the person's team
+                if(not i == pId-1):
+                    tId = match["participantIdentities"][i]["player"]["summonerId"]
+                        
+                    #handle duo streaks/sessions
+                    if(tId in streaks):
+                        streaks[tId]["games"] += 1
+                    else:
+                        streaks[tId] = {"games":1}
+                    streaks[tId]["active"] = 1
+                        
+            #clean duo streaks/sessions
+            inactive = []
+            for duo in streaks:
+                if(streaks[duo]["active"] == 0):
+                    inactive.append(duo) #if a duo is inactive, we will remove it below
+                else:
+                    streaks[duo]["active"] = 0 #mark the remaining duos as inactive
+            for duo in inactive:
+                games = streaks[duo]["games"]
+                if(games > minGames): #if a duo partner is now inactive but had more than min games in a row, mark that
+                    if duo not in duos:
+                        duos[duo] = {"games":games,"sessions":[games]} #keep track of the total games played and each session length
+                    else:
+                        duos[duo]["games"] += games
+                        duos[duo]["sessions"].append(games)
+                streaks.pop(duo)
+                
+    return duos
         
 """
-accountFingerprint() is a method that creates a "unique" fingerprint based off of different factors from an account
+accountFingerprint() is a method that creates a "unique" fingerprint based off of different factors from an account.
+This suite of methods is fairly experimental, so there are currently limited comments. Use at your own risk.
 """
 
 global ALL_ITEMS, ACTIVE_ITEMS, ITEM_DICT
@@ -301,8 +463,7 @@ def getFingerprint(name):
     account = riotapicalls.getAccountByName(name)
     assert "id" in account, "Invalid name given, no account found for: " + name
     summId = account["id"]
-    #matches = riotapicalls.getAllRankedMatchesByAccount(account)
-    matches = dbcalls.fetchMatchesByAccount(account)
+    matches = riotapicalls.getAllRankedMatchesByAccount(account)
     
     fingerprint["numMatches"] = len(matches)
     for match in matches:

@@ -5,28 +5,41 @@ Created on Thu Jan  2 16:14:03 2020
 @author: Ahir
 """
 
-import sqlite3
+import pymysql
 import json
 import time
+import os
 
 global DB, cursor
-DB = sqlite3.connect("riotapi.db") #connect to our database
+hst=""
+dbname=""
+u=""
+pw=""
+if(os.path.exists("secrets.txt")):
+    with open("secrets.txt",'r') as openFile:
+        secrets = json.loads(openFile.read())
+        hst = secrets["db_host"]
+        dbname = secrets["db_name"]
+        u = secrets["db_user"]
+        pw = secrets["db_pw"]
+
+DB = pymysql.connect(host=hst,user=u,password=pw,database=dbname) #connect to our database
 cursor = DB.cursor()
+print("Database connected to!")
 
 def createAccountsTable():
     #cursor.execute("DROP TABLE accounts")
     #DB.commit()
     #hard coded numbers are the max sizes for the respective field, with extra padding just in case
+    #removed summonericon and summonerlevel, as neither are relevant for looking up
     create_accounts = """
-    CREATE TABLE accounts (
-    profileIconId int,
+    CREATE TABLE IF NOT EXISTS accounts (
     name VARCHAR(16),
     puuid VARCHAR(128),
-    summonerLevel int,
-    accountId VARCHAR(128),
-    id VARCHAR(128),
+    accountId VARCHAR(64),
+    id VARCHAR(64),
     revisionDate bigint,
-    data TEXT
+    data JSON
     );
     """
     cursor.execute(create_accounts)
@@ -37,20 +50,20 @@ def createMatchesTable():
     #DB.commit()
     #uses summIds (account["id"]) to store p1-p10
     create_matches = """
-    CREATE TABLE matches (
-    gameId int,
+    CREATE TABLE IF NOT EXISTS matches (
+    gameId bigint,
     gameCreation bigint,
     mapId int,
     queueId int,
     seasonId int,
-    gameDuration int,
-    gameMode VARCHAR(32),
-    gameType VARCHAR(32),
-    platformId VARCHAR(8),
-    gameVersion VARCHAR(32),
-    p1 VARCHAR(128), p2 VARCHAR(128), p3 VARCHAR(128), p4 VARCHAR(128), p5 VARCHAR(128),
-    p6 VARCHAR(128), p7 VARCHAR(128), p8 VARCHAR(128), p9 VARCHAR(128), p10 VARCHAR(128),
-    data TEXT
+    gameDuration bigint,
+    gameMode VARCHAR(16),
+    gameType VARCHAR(16),
+    platformId VARCHAR(4),
+    gameVersion VARCHAR(16),
+    p1 VARCHAR(64), p2 VARCHAR(64), p3 VARCHAR(64), p4 VARCHAR(64), p5 VARCHAR(64),
+    p6 VARCHAR(64), p7 VARCHAR(64), p8 VARCHAR(64), p9 VARCHAR(64), p10 VARCHAR(64),
+    data JSON
     );
     """
     cursor.execute(create_matches)
@@ -61,9 +74,9 @@ def createTimelinesTable():
     #DB.commit()
     #uses summIds (account["id"]) to store p1-p10
     create_timelines = """
-    CREATE TABLE timelines (
-    gameId int,
-    data TEXT
+    CREATE TABLE IF NOT EXISTS timelines (
+    gameId bigint,
+    data JSON
     );
     """
     cursor.execute(create_timelines)
@@ -73,34 +86,34 @@ def createChampionsTable():
     #cursor.execute("DROP TABLE champions")
     #DB.commit()
     create_champions = """
-    CREATE TABLE champions (
+    CREATE TABLE IF NOT EXISTS champions (
+    ky int,
     version VARCHAR(16),
     id VARCHAR(32),
     name VARCHAR(32),
-    key int,
     partype VARCHAR(16),
-    armor float,
-    armorperlevel float,
-    attackdamage float,
-    attackdamageperlevel float,
+    armor decimal,
+    armorperlevel decimal,
+    attackdamage decimal,
+    attackdamageperlevel decimal,
     attackrange int,
-    attackspeed float,
-    attackspeedperlevel float,
-    crit float,
-    critperlevel float,
-    hp float,
-    hpperlevel float,
-    hpregen float,
-    hpregenperlevel float,
+    attackspeed decimal,
+    attackspeedperlevel decimal,
+    crit decimal,
+    critperlevel decimal,
+    hp decimal,
+    hpperlevel decimal,
+    hpregen decimal,
+    hpregenperlevel decimal,
     movespeed int,
-    mp float,
-    mpperlevel float,
-    mpregen float,
-    mpregenperlevel float,
-    spellblock float,
-    spellblockperlevel float,
+    mp decimal,
+    mpperlevel decimal,
+    mpregen decimal,
+    mpregenperlevel decimal,
+    spellblock decimal,
+    spellblockperlevel decimal,
     title VARCHAR(64),
-    data TEXT
+    data JSON
     );
     """
     cursor.execute(create_champions)
@@ -110,7 +123,7 @@ def createItemsTable():
     #cursor.execute("DROP TABLE items")
     #DB.commit()
     create_items = """
-    CREATE TABLE items (
+    CREATE TABLE IF NOT EXISTS items (
     version VARCHAR(16),
     colloq VARCHAR(64),
     depth int,
@@ -119,9 +132,9 @@ def createItemsTable():
     sellCost int,
     totalCost int,
     onSR int,
-    name VARCHAR(128),
+    name VARCHAR(64),
     number int,
-    data TEXT
+    data JSON
     );
     """
     cursor.execute(create_items)
@@ -131,13 +144,13 @@ def createSpellsTable():
     #cursor.execute("DROP TABLE sSpells")
     #DB.commit()
     create_sSpells = """
-    CREATE TABLE sSpells (
+    CREATE TABLE IF NOT EXISTS sSpells (
     version VARCHAR(16),
     name VARCHAR(32),
     cd int,
-    key int,
+    ky int,
     onSR int,
-    data TEXT
+    data JSON
     );
     """
     cursor.execute(create_sSpells)
@@ -147,11 +160,11 @@ def createRunesTable():
     #cursor.execute("DROP TABLE runes")
     #DB.commit()
     create_runes = """
-    CREATE TABLE runes (
+    CREATE TABLE IF NOT EXISTS runes (
     id int,
-    key VARCHAR(16),
+    ky VARCHAR(16),
     name VARCHAR(16),
-    data TEXT
+    data JSON
     );
     """
     cursor.execute(create_runes)
@@ -162,20 +175,20 @@ def createTeamsTable():
     #DB.commit()
     #25 summonerIds and 25 names to account for way more than possible accounts on a team
     create_teams = """
-    CREATE TABLE teams (
+    CREATE TABLE IF NOT EXISTS teams (
     date VARCHAR(16),
-    name VARCHAR(64),
-    id1 VARCHAR(128),id2 VARCHAR(128),id3 VARCHAR(128),id4 VARCHAR(128),id5 VARCHAR(128),
-    id6 VARCHAR(128),id7 VARCHAR(128),id8 VARCHAR(128),id9 VARCHAR(128),id10 VARCHAR(128),
-    id11 VARCHAR(128),id12 VARCHAR(128),id13 VARCHAR(128),id14 VARCHAR(128),id15 VARCHAR(128),
-    id16 VARCHAR(128),id17 VARCHAR(128),id18 VARCHAR(128),id19 VARCHAR(128),id20 VARCHAR(128),
-    id21 VARCHAR(128),id22 VARCHAR(128),id23 VARCHAR(128),id24 VARCHAR(128),id25 VARCHAR(128),
+    name VARCHAR(32),
+    id1 VARCHAR(64),id2 VARCHAR(64),id3 VARCHAR(64),id4 VARCHAR(64),id5 VARCHAR(64),
+    id6 VARCHAR(64),id7 VARCHAR(64),id8 VARCHAR(64),id9 VARCHAR(64),id10 VARCHAR(64),
+    id11 VARCHAR(64),id12 VARCHAR(64),id13 VARCHAR(64),id14 VARCHAR(64),id15 VARCHAR(64),
+    id16 VARCHAR(64),id17 VARCHAR(64),id18 VARCHAR(64),id19 VARCHAR(64),id20 VARCHAR(64),
+    id21 VARCHAR(64),id22 VARCHAR(64),id23 VARCHAR(64),id24 VARCHAR(64),id25 VARCHAR(64),
     n1 VARCHAR(16),n2 VARCHAR(16),n3 VARCHAR(16),n4 VARCHAR(16),n5 VARCHAR(16),
     n6 VARCHAR(16),n7 VARCHAR(16),n8 VARCHAR(16),n9 VARCHAR(16),n10 VARCHAR(16),
     n11 VARCHAR(16),n12 VARCHAR(16),n13 VARCHAR(16),n14 VARCHAR(16),n15 VARCHAR(16),
     n16 VARCHAR(16),n17 VARCHAR(16),n18 VARCHAR(16),n19 VARCHAR(16),n20 VARCHAR(16),
     n21 VARCHAR(16),n22 VARCHAR(16),n23 VARCHAR(16),n24 VARCHAR(16),n25 VARCHAR(16),
-    accounts TEXT
+    accounts JSON
     );
     """
     cursor.execute(create_teams)
@@ -183,17 +196,18 @@ def createTeamsTable():
 
 def initializeDB():
     """
-    Should never be called, but this was used to initalize the riotapi.db file
+    Should never be called other than on initialization, but this was used to initalize the riotapi.db file
     """
-    #createAccountsTable()
-    #createMatchesTable()
-    #createChampionsTable()
-    #createItemsTable()
-    #createSpellsTable()
-    #createRunesTable()  
-    #createTeamsTable()
-    #createTimelinesTable()
-    
+    createAccountsTable()
+    createMatchesTable()
+    createChampionsTable()
+    createItemsTable()
+    createSpellsTable()
+    createRunesTable()  
+    createTeamsTable()
+    createTimelinesTable()
+
+
 def printTable(tableName):
     cmd = "SELECT COUNT(*) from " + tableName
     cursor.execute(cmd)
@@ -202,15 +216,13 @@ def printTable(tableName):
     
 def printTables():
     """
-    Purely a debug method.
+    Purely a debug method. Probably no longer works on AWS
     """    
-    cmd = "SELECT name from sqlite_master where type= 'table'"
+    cmd = "SHOW TABLES"
     cursor.execute(cmd)
     results = cursor.fetchall()
     for name in results:
         printTable(name[0])
-    
-#printTables()
         
 """
 Table update method for dynamic data that changes per patch (champions, items, sSpells)
@@ -296,16 +308,18 @@ def addAccountToDB(account):
     if(fetchAccountByPuuid(account["puuid"])):  #account is already in the database, don't do anything
         return 0
     formatStr = """
-    INSERT INTO accounts (profileIconId, name, puuid, summonerLevel, accountId, id, revisionDate, data)
-    VALUES ({icon},"{n}","{puuid}",{level},"{accId}","{summId}",{date},?);
+    INSERT INTO accounts (`name`, `puuid`, `accountId`, `id`, `revisionDate`, `data`)
+    VALUES ("{n}","{puuid}","{accId}","{summId}",{date},'{d}');
     """
     name = account["name"].lower()
     name = name.replace(" ","")
-    cmd = formatStr.format(icon=account["profileIconId"],n=name,
-                           puuid=account["puuid"],level=account["summonerLevel"],
-                           accId=account["accountId"],summId=account["id"],date=account["revisionDate"])
-    data = json.dumps(account)
-    cursor.execute(cmd,(data,))
+    cmd = formatStr.format(n=name,
+                           puuid=account["puuid"],
+                           accId=account["accountId"],
+                           summId=account["id"],
+                           date=account["revisionDate"],
+                           d=json.dumps(account))    
+    cursor.execute(cmd)
     DB.commit()
     return 1
 
@@ -315,11 +329,10 @@ def addTimelineToDB(timeline,gameId):
     if(fetchTimeline(gameId)):
         return 0
     formatStr = """
-    INSERT INTO timelines (gameId, data) VALUES ({gId},?);
+    INSERT INTO timelines (`gameId`, `data`) VALUES ({gId},'{d}');
     """
-    data = json.dumps(timeline)
-    cmd = formatStr.format(gId=gameId)
-    cursor.execute(cmd,(data,))
+    cmd = formatStr.format(gId=gameId,d=json.dumps(timeline))
+    cursor.execute(cmd)
     DB.commit()
     return 1
 
@@ -329,14 +342,15 @@ def addMatchToDB(match):
     if(fetchMatch(match["gameId"])):    #match was already in the database
         return 0
     formatStr = """
-    INSERT INTO matches (gameId, gameCreation, mapId, queueId, seasonId, gameDuration, gameMode, 
-    gameType, platformId, gameVersion, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, data) 
+    INSERT INTO matches (`gameId`, `gameCreation`, `mapId`, `queueId`, 
+    `seasonId`, `gameDuration`, `gameMode`, 
+    `gameType`, `platformId`, `gameVersion`, `p1`, `p2`, `p3`, `p4`, `p5`,
+    `p6`, `p7`, `p8`, `p9`, `p10`, `data`) 
     VALUES ({gid},{gC},{mid},{qid},{sid},{gD},"{gM}","{gT}", 
-    "{pid}","{gV}","{p1}","{p2}","{p3}","{p4}","{p5}","{p6}","{p7}","{p8}","{p9}","{p10}",?);
+    "{pid}","{gV}","{p1}","{p2}","{p3}","{p4}","{p5}","{p6}","{p7}","{p8}","{p9}","{p10}",'{d}');
     """
     p = []
     m = match
-    data = json.dumps(m)
     assert len(m["participantIdentities"]) == 10, "there are not 10 players?"
     for i in range(0,len(m["participantIdentities"])):    #guarantee summId's added in order
         p.append(m["participantIdentities"][i]["player"]["summonerId"])
@@ -345,8 +359,8 @@ def addMatchToDB(match):
                            sid=m["seasonId"],gD=m["gameDuration"],gM=m["gameMode"],
                            gT=m["gameType"],pid=m["platformId"],gV=m["gameVersion"],
                            p1=p[0],p2=p[1],p3=p[2],p4=p[3],p5=p[4],p6=p[5],p7=p[6],
-                           p8=p[7],p9=p[8],p10=p[9])
-    cursor.execute(cmd,(data,))
+                           p8=p[7],p9=p[8],p10=p[9],d=json.dumps(m))
+    cursor.execute(cmd)
     DB.commit()
     return 1
     
@@ -369,7 +383,7 @@ def updateAccountName(name,puuid):
 def updateChamps(champs,version):
     cursor.execute("DELETE FROM champions;")
     formatStr = """
-    INSERT INTO champions (version, id, name, key, partype, 
+    INSERT INTO champions (version, id, name, ky, partype, 
     armor, armorperlevel, attackdamage, attackdamageperlevel, attackrange, attackspeed, 
     attackspeedperlevel, crit, critperlevel, hp, hpperlevel, hpregen, hpregenperlevel, 
     movespeed, mp, mpperlevel, mpregen, mpregenperlevel, spellblock, spellblockperlevel, 
@@ -409,7 +423,7 @@ def updateItems(items,version):
 def updateSpells(spells,version):   #summoner spells
     cursor.execute("DELETE FROM sSpells;")
     formatStr = """
-    INSERT INTO sSpells (version, name, cd, key, onSR, data) 
+    INSERT INTO sSpells (version, name, cd, ky, onSR, data) 
     VALUES ("{v}","{n}",{cd},{k},{onSR},?);
     """
     for summ in spells:
@@ -423,7 +437,7 @@ def updateSpells(spells,version):   #summoner spells
 def updateRunes(runes):
     cursor.execute("DELETE FROM runes;")
     formatStr = """
-    INSERT INTO runes (id, key, name, data) 
+    INSERT INTO runes (id, ky, name, data) 
     VALUES ({iD},"{k}","{n}",?);
     """
     for tree in runes:
@@ -464,8 +478,8 @@ def fetchChampByName(name):
     cmd = "SELECT data FROM champions WHERE name = " + "\"" + name.lower() + "\""
     return fetchChamp(cmd)
     
-def fetchChampByKey(key):
-    cmd = "SELECT data FROM champions WHERE key = " + (str)(key)
+def fetchChampByKey(ky):
+    cmd = "SELECT data FROM champions WHERE ky = " + (str)(ky)
     return fetchChamp(cmd)
 
 def fetchAllItems():
@@ -511,8 +525,8 @@ def fetchRuneByName(name):
     cmd = "SELECT data FROM runes WHERE name = " + "\"" + name.lower() + "\""
     return fetchRune(cmd)
 
-def fetchRuneById(key):
-    cmd = "SELECT data FROM runes WHERE id = " + (str)(key)
+def fetchRuneById(ky):
+    cmd = "SELECT data FROM runes WHERE id = " + (str)(ky)
     return fetchRune(cmd)
 
 def fetchTimeline(gameId):
@@ -623,8 +637,8 @@ def deleteAccount(name):
 Generally useful methods built on top of the database calls
 """
 
-def translateChamp(key):
-    champ = fetchChampByKey(key)
+def translateChamp(ky):
+    champ = fetchChampByKey(ky)
     return champ["name"]
 
 def translateItem(num):
@@ -634,8 +648,8 @@ def translateItem(num):
     else:
         return (str)(num)
     
-def translateRune(key):
-    rune = fetchRuneById(key)
+def translateRune(ky):
+    rune = fetchRuneById(ky)
     if(rune):
         return rune["name"]
     else:
@@ -661,4 +675,4 @@ def updateAccounts():
             updateAccountName(name,d["puuid"])
     return count
 
-#accs = fetchAccountsBySummId(["","X7f8J3RGuTQQDlgPKY2mZJ5ZRyDBxaE2r9UHA_P5AZhYhdg","12pOl3914K3ToSf3RFSYJJ_0xVI0S6PzG8N3oamo5kQlAKY","YuCptpWXu-4GWpT_msxWcZcKZZL6O0eZX3TusAyD_7Is51Y"])
+printTables()

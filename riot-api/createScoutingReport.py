@@ -131,7 +131,7 @@ def sortChampPool(champPool,recent,aggregate):
             if t[1] < fringeThreshold:
                 champPool.append("")
                 fringe = True
-        champPool.append(t[0])
+        champPool.append([t[0],t[1]])
     return champPool
 
 def createChampPools(players):
@@ -156,6 +156,7 @@ def createReport(accounts):
     report = {"players":{},"flexes":{}}
     #flexes = report["flexes"]
     #timelines = []
+    #change the matches variable if its a player not in the db
     for account in accounts:
         if(account):    #if the account is a valid account
             name = account["name"]
@@ -171,12 +172,11 @@ def createReport(accounts):
             print("Invalid account given.")
             
     report["players"] = createChampPools(report["players"])
-        
     return report
 
 def createScoutingReport(teamName,opgg):
     print("Creating scouting report for " + teamName + "...")
-    names = opggcalls.getNamesFromOpgg(opgg)
+    names = opggcalls.getNamesFromMulti(opgg)
     accounts = riotapicalls.getAccountsByNames(names)
     #dbcalls.addTeamToDB(teamName,accounts)
     report = createReport(accounts)
